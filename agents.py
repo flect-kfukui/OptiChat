@@ -55,6 +55,36 @@ class Agent:
     """
 
     def __init__(self, name, description, client, llm="gpt-4-turbo-preview", **kwargs):
+        """
+        Initialize an AI agent with configuration and LLM client.
+
+        Parameters
+        ----------
+        name : str
+            The name identifier for the agent.
+        description : str
+            A description of the agent's purpose and capabilities.
+        client : Client or OpenAI
+            The OpenAI client instance for making API calls.
+        llm : str, default="gpt-4-turbo-preview"
+            The language model to use for completions.
+        **kwargs : dict
+            Additional configuration parameters including:
+            - function_names : list, optional - Available function names
+            - tools : list, optional - Available tools for the agent
+            - multiple_tools : list, optional - Tools for multiple index specs
+            - single_tools : list, optional - Tools for single index specs
+            - none_tools : list, optional - Tools for non-indexed components
+            - all_tools : list, optional - Combined tools for all modes
+            - tool_choice : str, optional - Default tool choice setting
+            - syntax_guidance_tool : list, optional - Syntax guidance tools
+
+        Notes
+        -----
+        Sets up the base configuration for all AI agents in the system.
+        Initializes tool configurations, file paths for logging, and
+        establishes the connection to the language model client.
+        """
         self.name = name
         self.description = description
         self.client = client
@@ -321,6 +351,45 @@ class Agent:
 
 class Interpreter(Agent):
     def __init__(self, client: Client, **kwargs):
+        """Initialize an Engineer agent specialized in technical optimization feedback.
+
+        This constructor creates an agent focused on providing technical
+        feedback for optimization-related queries, particularly when the
+        user\'s question involves scenarios that differ from the current model.
+        The Engineer agent executes tools and functions when direct interaction
+        with optimization models is required.
+
+        Parameters
+        ----------
+        client : Client
+            The client interface for communication with the AI model.
+        **kwargs
+            Additional keyword arguments passed to the parent Agent class.
+            See Agent.__init__ for supported parameters.
+
+        Notes
+        -----
+        The Engineer agent is designed to provide technical rather than
+        natural-language explanations, making it suitable for users who
+        need detailed technical feedback about optimization scenarios.
+        """
+        """
+        Initialize the Interpreter agent for optimization model analysis.
+
+        Parameters
+        ----------
+        client : Client
+            OpenAI client instance for making API calls.
+        **kwargs : dict
+            Additional configuration parameters passed to parent Agent class.
+
+        Notes
+        -----
+        Specialized agent that interprets optimization models and translates
+        technical concepts into natural language explanations for non-experts.
+        Initializes prompt templates for model interpretation, illustration,
+        and inference tasks.
+        """
         super().__init__(
             name="Interpreter",
             description="This is an operations research agent that is an expert in interpreting optimization models and codes to non-experts.",
@@ -818,6 +887,27 @@ class Interpreter(Agent):
 
 class Coordinator(Agent):
     def __init__(self, client: Client, agents: [Agent], max_rounds: int = 5, **kwargs):
+        """
+        Initialize the Coordinator agent for multi-agent task management.
+
+        Parameters
+        ----------
+        client : Client
+            OpenAI client instance for making API calls.
+        agents : list of Agent
+            List of available agents that can be coordinated and assigned tasks.
+        max_rounds : int, default=5
+            Maximum number of coordination rounds before termination.
+        **kwargs : dict
+            Additional configuration parameters passed to parent Agent class.
+
+        Notes
+        -----
+        Specialized agent that orchestrates collaboration between multiple AI agents.
+        Analyzes conversation context to determine which agent should handle each
+        task and manages the overall workflow for complex optimization analysis.
+        Initializes coordination counters and prompt templates.
+        """
         super().__init__(
             name="Coordinator",
             description="This is a coordinator agent that chooses which agent to work on the problem next and organizes "
@@ -1061,6 +1151,25 @@ class Coordinator(Agent):
 
 class Explainer(Agent):
     def __init__(self, client: Client, max_rounds: int = 5, **kwargs):
+        """
+        Initialize the Explainer agent for user-friendly explanations.
+
+        Parameters
+        ----------
+        client : Client
+            OpenAI client instance for making API calls.
+        max_rounds : int, default=5
+            Maximum number of explanation rounds before termination.
+        **kwargs : dict
+            Additional configuration parameters passed to parent Agent class.
+
+        Notes
+        -----
+        Specialized agent that translates technical analysis results into
+        user-friendly explanations suitable for non-technical stakeholders.
+        Synthesizes feedback from Engineers and other technical agents into
+        accessible natural language responses.
+        """
         super().__init__(
             name="Explainer",
             description="This is an explainer agent whose task is to either (1) directly answer user queries if the questions can be analyzed through natural language only, or (2) summarize the technical feedback obtained from engineers to answer user queries",
@@ -1147,6 +1256,28 @@ class Engineer(Agent):
     """
 
     def __init__(self, client: Client, **kwargs):
+        """Initialize an Engineer agent specialized in technical optimization feedback.
+
+        This constructor creates an agent focused on providing technical
+        feedback for optimization-related queries, particularly when the
+        user's question involves scenarios that differ from the current model.
+        The Engineer agent executes tools and functions when direct interaction
+        with optimization models is required.
+
+        Parameters
+        ----------
+        client : Client
+            The client interface for communication with the AI model.
+        **kwargs
+            Additional keyword arguments passed to the parent Agent class.
+            See Agent.__init__ for supported parameters.
+
+        Notes
+        -----
+        The Engineer agent is designed to provide technical rather than
+        natural-language explanations, making it suitable for users who
+        need detailed technical feedback about optimization scenarios.
+        """
         super().__init__(
             name="Engineer",
             description="This is an engineer agent whose task is to execute tools and functions when user's query requires an interaction with optimization model. The engineer agent provides technical feedback instead of natural-language explanations."
