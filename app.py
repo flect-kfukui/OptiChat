@@ -6,6 +6,7 @@ import time
 from io import StringIO
 
 import streamlit as st
+from dotenv import load_dotenv
 from openai import OpenAI
 from pyomo.opt import TerminationCondition
 
@@ -22,6 +23,9 @@ def string_generator(long_string, chunk_size=50):
     for i in range(0, len(long_string), chunk_size):
         yield long_string[i : i + chunk_size]
         time.sleep(0.1)  # Optionally add a small delay between each yield
+
+
+load_dotenv(".env")
 
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
