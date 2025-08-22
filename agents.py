@@ -388,6 +388,34 @@ class Interpreter(Agent):
     def generate_interpretation(
         self, models_dict: Dict, code: str, model_name="model_1"
     ):
+        """
+        Generate model interpretation by analyzing components and adding descriptions.
+
+        Parameters
+        ----------
+        models_dict : dict
+            Dictionary containing model representations and components.
+        code : str
+            Source code of the optimization model.
+        model_name : str, default="model_1"
+            Key identifying which model to interpret.
+
+        Returns
+        -------
+        dict
+            Updated models_dict with component descriptions filled in.
+
+        Raises
+        ------
+        Exception
+            If JSON parsing fails repeatedly after 3 attempts.
+
+        Notes
+        -----
+        Iteratively processes model components to generate natural language
+        descriptions. Uses retry logic with 3 attempts for robustness against
+        JSON parsing errors.
+        """
         task_complete = False
         cnt = 3
         while not task_complete and cnt > 0:
@@ -836,6 +864,31 @@ class Coordinator(Agent):
         )
 
     def generate_decision(self, messages, team_conversation, agent_name, task):
+        """
+        Generate coordination decisions for multi-agent task assignment.
+
+        Parameters
+        ----------
+        messages : list of dict
+            Original message history from the conversation.
+        team_conversation : list of dict
+            History of team conversation with agent responses.
+        agent_name : object
+            Streamlit text object to display the selected agent name.
+        task : object
+            Streamlit text object to display the assigned task.
+
+        Returns
+        -------
+        tuple of (str, str or dict)
+            Status of coordination ("In Progress", "Completed", "Terminated") and
+            either the final output string or the decision dictionary.
+
+        Notes
+        -----
+        Core coordination logic that analyzes conversation history and assigns
+        tasks to appropriate agents. Includes retry logic and completion detection.
+        """
         status = "In Progress"
 
         coordinate_prompt = self.prompt_template.format(agents=self.agents_list)
@@ -918,6 +971,28 @@ class Coordinator(Agent):
                     return status, OptiChat_out
 
     def generate_decision_exp(self, args, messages, team_conversation):
+        """
+        Generate coordination decisions with experimental settings and simplified logic.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments including temperature, json_mode settings.
+        messages : list of dict
+            Original message history from the conversation.
+        team_conversation : list of dict
+            History of team conversation with agent responses.
+
+        Returns
+        -------
+        tuple of (str, str or dict)
+            Status of coordination and either the final output or decision dictionary.
+
+        Notes
+        -----
+        Experimental version with simplified decision logic. If team conversation exists,
+        automatically assigns Explainer; otherwise uses LLM for decision making.
+        """
         self._init_cnt()
         coordinate_prompt = self.prompt_template.format(agents=self.agents_list)
         while self.coordinator_cnt > 0:
@@ -1007,6 +1082,28 @@ class Explainer(Agent):
         self.prompt_template = get_prompts("explainer_prompt")
 
     def generate_explanation_exp(self, args, messages, team_conversation):
+        """
+        Generate user-friendly explanations from technical analysis results.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments including temperature and streaming settings.
+        messages : list of dict
+            Original message history from the conversation.
+        team_conversation : list of dict
+            History of team conversation with technical feedback from other agents.
+
+        Returns
+        -------
+        str or completion object
+            Explanation response, either streamed or complete text.
+
+        Notes
+        -----
+        Synthesizes technical feedback from Engineers and other agents into
+        user-friendly explanations suitable for non-technical stakeholders.
+        """
         prompt = self.prompt_template  # nothing to format here
         pseudo_messages = self.generate_pseudo_messages(
             messages, team_conversation, prompt
@@ -1123,6 +1220,14 @@ class Engineer(Agent):
         )
 
     def _init_cnt(self):
+        """
+        Initialize all retry counters for engineer operations.
+
+        Notes
+        -----
+        Resets all counter variables used for tracking retry attempts
+        in syntax analysis, operator calls, programming, and evaluation phases.
+        """
         self.syntax_cnt = 3
         self.operator_cnt = 3
         self.programmer_cnt = 3  # cnt for programmer output format
