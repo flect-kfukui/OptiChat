@@ -21,6 +21,39 @@ from prompts import get_prompts
 
 
 class Agent:
+    """
+    Base class for AI agents in the optimization model analysis system.
+
+    This class provides common functionality for different types of agents
+    that interact with optimization models and provide analysis capabilities.
+
+    Parameters
+    ----------
+    name : str
+        The name identifier for the agent.
+    description : str
+        A description of the agent's purpose and capabilities.
+    client : Client or OpenAI
+        The OpenAI client instance for making API calls.
+    llm : str, default="gpt-4-turbo-preview"
+        The language model to use for completions.
+    **kwargs : dict
+        Additional configuration parameters including function names, tools, etc.
+
+    Attributes
+    ----------
+    system_prompt : str
+        The system prompt used for LLM interactions.
+    function_names : list, optional
+        List of available function names for the agent.
+    tools : list, optional
+        Available tools for the agent.
+    team_conversation_filename : str
+        Path to the team conversation log file.
+    chat_history_filename : str
+        Path to the detailed chat history log file.
+    """
+
     def __init__(self, name, description, client, llm="gpt-4-turbo-preview", **kwargs):
         self.name = name
         self.description = description
@@ -48,6 +81,31 @@ class Agent:
         seed: int = 10,
         stream: bool = False,
     ) -> str:
+        """
+        Make a call to the language model with either a prompt or messages.
+
+        Parameters
+        ----------
+        prompt : str, optional
+            Single prompt string to send to the LLM. Mutually exclusive with messages.
+        messages : list of dict, optional
+            List of message dictionaries with 'role' and 'content' keys.
+            Mutually exclusive with prompt.
+        seed : int, default=10
+            Random seed for reproducible results.
+        stream : bool, default=False
+            Whether to stream the response.
+
+        Returns
+        -------
+        str or completion object
+            The LLM response content if stream=False, otherwise completion object.
+
+        Notes
+        -----
+        Exactly one of prompt or messages must be provided. If prompt is provided,
+        it will be formatted as a user message with the system prompt.
+        """
         # make sure exactly one of prompt or messages is provided
         assert (prompt is None) != (messages is None)
         # make sure if messages is provided, it is a list of dicts with role and content
@@ -88,6 +146,28 @@ class Agent:
     def generate_pseudo_messages(
         messages: List[Dict], team_conversation: List[Dict], new_prompt: str
     ) -> List[Dict]:
+        """
+        Generate pseudo messages for agent interaction.
+
+        Parameters
+        ----------
+        messages : list of dict
+            Original message history.
+        team_conversation : list of dict
+            Team conversation history with agent responses.
+        new_prompt : str
+            New prompt to add to the conversation.
+
+        Returns
+        -------
+        list of dict
+            Modified message list with team conversation context and new prompt.
+
+        Notes
+        -----
+        Integrates team conversation history as system messages and adds
+        the new prompt as a user message to create context for agent interactions.
+        """
         pseudo_messages = copy.deepcopy(messages)
         if team_conversation:
             for message in team_conversation:
@@ -111,11 +191,42 @@ class Agent:
         return pseudo_messages
 
     def save_team_conversation(self, team_conversation):
+        """
+        Save team conversation to a file for debugging and analysis.
+
+        Parameters
+        ----------
+        team_conversation : list of dict
+            List of conversation messages from different agents.
+            Each dict should contain 'agent_name' and 'agent_response' keys.
+
+        Notes
+        -----
+        Appends each message to the team conversation file with proper formatting.
+        Used for tracking multi-agent interactions during the optimization process.
+        """
         with open(self.team_conversation_filename, "a") as f:
             for message in team_conversation:
                 f.write(f"{message['agent_name']}: {message['agent_response']}\n\n")
 
     def print_in_and_out(self, prompt, llm_response, agent_name=None):
+        """
+        Print formatted input prompt and LLM response for debugging.
+
+        Parameters
+        ----------
+        prompt : str
+            The input prompt sent to the LLM.
+        llm_response : str
+            The response received from the LLM.
+        agent_name : str, optional
+            Name of the agent for the header. If None, uses self.name.
+
+        Notes
+        -----
+        Provides structured output for debugging agent conversations and
+        monitoring LLM interactions during optimization analysis.
+        """
         if agent_name is None:
             agent_name = self.name
         print("=" * 5 + agent_name + "=" * 5)
@@ -133,6 +244,34 @@ class Agent:
         json_mode: bool = False,
         stream: bool = False,
     ) -> str:
+        """
+        Extended LLM call with additional parameters for temperature and JSON mode.
+
+        Parameters
+        ----------
+        prompt : str, optional
+            Single prompt string to send to the LLM.
+        messages : list of dict, optional
+            List of message dictionaries with 'role' and 'content' keys.
+        seed : int, default=10
+            Random seed for reproducible results.
+        temperature : float, default=0.1
+            Sampling temperature for response randomness.
+        json_mode : bool, default=False
+            Whether to request JSON-formatted responses.
+        stream : bool, default=False
+            Whether to stream the response.
+
+        Returns
+        -------
+        str or completion object
+            The LLM response content or completion object for streaming.
+
+        Notes
+        -----
+        Similar to llm_call but with additional control over temperature and
+        response format. Handles both regular OpenAI models and special cases like o3.
+        """
         # make sure exactly one of prompt or messages is provided
         assert (prompt is None) != (messages is None)
         # make sure if messages is provided, it is a list of dicts with role and content
@@ -192,6 +331,14 @@ class Interpreter(Agent):
         self._init_prompt_template()
 
     def _init_prompt_template(self):
+        """
+        Initialize prompt templates for model interpretation tasks.
+
+        Notes
+        -----
+        Sets up templates for model interpretation, component description,
+        illustration, and inference prompts used by the Interpreter agent.
+        """
         self.interpretation_prompt_template = get_prompts("model_interpretation_prompt")
         self.need2describe_prompt_template = get_prompts("need2describe_prompt")
         self.interpretation_json_template = get_prompts("model_interpretation_json")
@@ -200,11 +347,41 @@ class Interpreter(Agent):
         self.inference_prompt_template = get_prompts("model_inference_prompt")
 
     def _cat(self, cat_need2describe, component_names, component_type):
+        """
+        Concatenate component description request to prompt.
+
+        Parameters
+        ----------
+        cat_need2describe : str
+            Current accumulated description prompt.
+        component_names : list
+            Names of components that need description.
+        component_type : str
+            Type of components (e.g., 'parameters', 'variables').
+
+        Returns
+        -------
+        str
+            Updated prompt with component description request.
+        """
         return cat_need2describe + self.need2describe_prompt_template.format(
             component_type=component_type, component_names=component_names
         )
 
     def _cut(self, component_type):
+        """
+        Remove a component type from the interpretation JSON template.
+
+        Parameters
+        ----------
+        component_type : str
+            Type of component to remove (e.g., 'parameters', 'variables').
+
+        Notes
+        -----
+        Used to customize the interpretation template by removing
+        component types that don't need description.
+        """
         if component_type in self.interpretation_json_template["components"]:
             del self.interpretation_json_template["components"][component_type]
 
@@ -312,6 +489,24 @@ class Interpreter(Agent):
         return models_dict
 
     def generate_illustration(self, model_representation: Dict):
+        """
+        Generate a natural language illustration of the optimization model.
+
+        Parameters
+        ----------
+        model_representation : dict
+            Complete model representation with component descriptions.
+
+        Returns
+        -------
+        completion object
+            Streaming LLM response containing model illustration and explanation.
+
+        Notes
+        -----
+        Creates user-friendly explanations of the optimization model structure,
+        objectives, constraints, and variables for non-technical audiences.
+        """
         prompt = self.illustration_prompt_template.format(
             json_representation=model_representation
         )
@@ -322,7 +517,40 @@ class Interpreter(Agent):
         return stream
 
     def generate_inference(self, model_representation: Dict):
+        """
+        Generate inference about model infeasibility using IIS information.
+
+        Parameters
+        ----------
+        model_representation : dict
+            Complete model representation containing IIS information.
+
+        Returns
+        -------
+        completion object
+            Streaming LLM response with inference about infeasibility causes.
+
+        Notes
+        -----
+        Analyzes the Irreducible Infeasible Subsystem (IIS) to provide
+        insights about why the model is infeasible and what might be done
+        to resolve the infeasibility.
+        """
+
         def split_representation(representation):
+            """
+            Split model representation into IIS info and reduced representation.
+
+            Parameters
+            ----------
+            representation : dict
+                Complete model representation with IIS information.
+
+            Returns
+            -------
+            tuple of (str, dict)
+                IIS description string and model representation without IIS data.
+            """
             # just split session_state.models_dict["model_representation"] into two parts
             reduced_json_representation = copy.deepcopy(representation)
             del reduced_json_representation["iis"]
@@ -344,6 +572,31 @@ class Interpreter(Agent):
     def generate_interpretation_exp(
         self, args, models_dict: Dict, code: str, model_name="model_1"
     ):
+        """
+        Generate model interpretation with experimental settings and retry logic.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments including temperature and streaming settings.
+        models_dict : dict
+            Dictionary containing multiple model representations.
+        code : str
+            Source code of the optimization model.
+        model_name : str, default="model_1"
+            Key identifying which model to interpret.
+
+        Returns
+        -------
+        tuple of (dict, int, bool) or None
+            Updated models_dict, retry count remaining, and success flag.
+            Returns None if all retries failed.
+
+        Notes
+        -----
+        Extended version of generate_interpretation with experimental parameters
+        and enhanced error handling. Includes retry logic for robustness.
+        """
         task_complete = False
         cnt = 3
         while not task_complete and cnt > 0:
@@ -447,6 +700,26 @@ class Interpreter(Agent):
         return models_dict, cnt, task_complete
 
     def generate_illustration_exp(self, args, model_representation: Dict):
+        """
+        Generate model illustration with experimental settings.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments with temperature and streaming settings.
+        model_representation : dict
+            Complete model representation with component descriptions.
+
+        Returns
+        -------
+        str or completion object
+            LLM response with model illustration, streamed or complete.
+
+        Notes
+        -----
+        Extended version of generate_illustration with configurable temperature
+        and streaming options for experimental analysis workflows.
+        """
         prompt = self.illustration_prompt_template.format(
             json_representation=model_representation
         )
@@ -459,7 +732,41 @@ class Interpreter(Agent):
         return stream_or_completion
 
     def generate_inference_exp(self, args, model_representation: Dict):
+        """
+        Generate inference about model infeasibility with experimental settings.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments with temperature and streaming settings.
+        model_representation : dict
+            Complete model representation containing IIS information.
+
+        Returns
+        -------
+        str or completion object
+            LLM response with infeasibility inference, streamed or complete.
+
+        Notes
+        -----
+        Extended version of generate_inference with configurable temperature
+        and streaming options for experimental infeasibility analysis.
+        """
+
         def split_representation(representation):
+            """
+            Split model representation into IIS info and reduced representation.
+
+            Parameters
+            ----------
+            representation : dict
+                Complete model representation with IIS information.
+
+            Returns
+            -------
+            tuple of (str, dict)
+                IIS description string and model representation without IIS data.
+            """
             # just split session_state.models_dict["model_representation"] into two parts
             reduced_json_representation = copy.deepcopy(representation)
             del reduced_json_representation["iis"]
@@ -500,10 +807,26 @@ class Coordinator(Agent):
         self._init_prompt_template()
 
     def _init_cnt(self):
+        """
+        Initialize coordinator counters and status flags.
+
+        Notes
+        -----
+        Sets up the retry counter and success flag for coordinator
+        decision-making processes.
+        """
         self.coordinator_cnt = 3
         self.coordinator_success = False
 
     def _init_prompt_template(self):
+        """
+        Initialize prompt template and agent list for coordination.
+
+        Notes
+        -----
+        Sets up the coordination prompt template and creates a formatted
+        list of available agents with their descriptions.
+        """
         self.prompt_template = get_prompts("coordinator_prompt")
         self.agents_list = "".join(
             [
@@ -673,6 +996,14 @@ class Explainer(Agent):
         self._init_prompt_template()
 
     def _init_prompt_template(self):
+        """
+        Initialize prompt template for explanation generation.
+
+        Notes
+        -----
+        Sets up the explainer prompt template used to generate
+        user-friendly explanations from technical feedback.
+        """
         self.prompt_template = get_prompts("explainer_prompt")
 
     def generate_explanation_exp(self, args, messages, team_conversation):
@@ -690,6 +1021,34 @@ class Explainer(Agent):
 
 
 class Engineer(Agent):
+    """
+    Specialized agent for performing technical analysis on optimization models.
+
+    This agent handles complex optimization model analysis tasks including:
+    - Syntax analysis and guidance generation
+    - Tool calling for feasibility analysis, sensitivity analysis, etc.
+    - Code generation and evaluation
+    - Multi-step technical workflows
+
+    The Engineer agent coordinates between multiple sub-capabilities to provide
+    comprehensive technical feedback on optimization models.
+
+    Attributes
+    ----------
+    syntax_cnt : int
+        Counter for syntax analysis attempts
+    operator_cnt : int
+        Counter for operator/tool call attempts
+    programmer_cnt : int
+        Counter for code generation attempts
+    evaluator_cnt : int
+        Counter for code evaluation attempts
+    various _success : bool
+        Flags indicating success status for different operations
+    various _time : float
+        Timing measurements for different operation phases
+    """
+
     def __init__(self, client: Client, **kwargs):
         super().__init__(
             name="Engineer",
@@ -722,6 +1081,14 @@ class Engineer(Agent):
         self.queried_function = None
 
     def _init_prompt_template(self):
+        """
+        Initialize prompt templates for engineer tasks.
+
+        Notes
+        -----
+        Sets up templates for syntax guidance, operator commands,
+        code generation, evaluation, and testing prompts.
+        """
         self.syntax_reminder_prompt_template = get_prompts("syntax_reminder_prompt")
         self.operator_prompt_template = get_prompts("operator_prompt")
 
@@ -732,6 +1099,21 @@ class Engineer(Agent):
         self.test_prompt_template = get_prompts("test_prompt")
 
     def _init_fake_team_conversation(self, team_conversation, code_wo_labels):
+        """
+        Initialize fake team conversation with code context.
+
+        Parameters
+        ----------
+        team_conversation : list of dict
+            Current team conversation history.
+        code_wo_labels : str
+            Source code without labels for context.
+
+        Notes
+        -----
+        Creates a deep copy of team conversation and adds code reminder
+        to provide context for code generation tasks.
+        """
         self.fake_team_conversation = copy.deepcopy(team_conversation)
         self.source_code = self.code_reminder_prompt_template.format(
             source_code=code_wo_labels
@@ -758,6 +1140,27 @@ class Engineer(Agent):
         self.queried_function = None
 
     def execute_code(self, revision_code, print_code):
+        """
+        Execute generated code and return results.
+
+        Parameters
+        ----------
+        revision_code : str
+            Code modifications to append to the source code.
+        print_code : str
+            Code for printing/display purposes.
+
+        Returns
+        -------
+        tuple of (str, str)
+            Complete source code and execution results.
+
+        Notes
+        -----
+        Combines source code with revision code, executes it, and saves
+        both the complete code and execution results to log files for debugging.
+        Updates fake team conversation with execution results.
+        """
         # src_code = insert_code(self.source_code, revision_code, 'REVISION')
         # src_code = insert_code(src_code, print_code, 'PRINT')
         src_code = self.source_code + "\n" + revision_code
@@ -787,6 +1190,34 @@ class Engineer(Agent):
         is_syntax_guidance: bool = False,
         syntax_mode: str = "none",
     ):
+        """
+        Make experimental LLM calls with tool calling capabilities.
+
+        Parameters
+        ----------
+        prompt : str, optional
+            Single prompt string to send to the LLM.
+        messages : list of dict, optional
+            List of message dictionaries with 'role' and 'content' keys.
+        seed : int, default=10
+            Random seed for reproducible results.
+        temperature : float, default=0.1
+            Sampling temperature for response randomness.
+        is_syntax_guidance : bool, default=False
+            Whether to use syntax guidance tools.
+        syntax_mode : str, default="none"
+            Mode for syntax analysis ("single", "multiple", "none").
+
+        Returns
+        -------
+        completion object
+            LLM completion with tool calling capabilities enabled.
+
+        Notes
+        -----
+        Extended LLM call interface with tool calling support for technical
+        analysis tasks. Handles both syntax guidance and operational tools.
+        """
 
         # make sure exactly one of prompt or messages is provided
         assert (prompt is None) != (messages is None)
@@ -855,6 +1286,30 @@ class Engineer(Agent):
         return fn_name, fn_args
 
     def generate_syntax_exp(self, args, messages, team_conversation, models_dict):
+        """
+        Generate syntax guidance for model analysis with experimental settings.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments with experimental settings.
+        messages : list of dict
+            Conversation message history.
+        team_conversation : list of dict
+            Team conversation history for context.
+        models_dict : dict
+            Dictionary containing model representations.
+
+        Returns
+        -------
+        tuple of (str, str) or (str, str)
+            Syntax guidance output and syntax mode ("single", "multiple", "none").
+
+        Notes
+        -----
+        Provides syntax reminders and guidance for technical analysis tools.
+        Adapts function availability based on model type (LP vs IP).
+        """
         while not self.syntax_success and self.syntax_cnt > 0:
             component_descriptions = extract_component_descriptions(models_dict)
 
@@ -909,6 +1364,32 @@ class Engineer(Agent):
     def generate_feedback_exp(
         self, args, messages, team_conversation, models_dict, syntax_mode
     ):
+        """
+        Generate technical feedback using tool calls and model analysis.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments with experimental settings.
+        messages : list of dict
+            Conversation message history.
+        team_conversation : list of dict
+            Team conversation history for context.
+        models_dict : dict
+            Dictionary containing model representations.
+        syntax_mode : str
+            Mode for syntax analysis ("single", "multiple", "none").
+
+        Returns
+        -------
+        str
+            Technical feedback from tool execution and analysis.
+
+        Notes
+        -----
+        Orchestrates tool calling to perform technical analysis on optimization
+        models. Includes error handling and retry logic for robustness.
+        """
         while not self.operator_success and self.operator_cnt > 0:
             prompt = self.operator_prompt_template  # nothing to format here
             pseudo_messages = self.generate_pseudo_messages(
@@ -974,6 +1455,27 @@ class Engineer(Agent):
                     return "LLM failed"
 
     def programmer_loop_exp(self, args, pseudo_messages):
+        """
+        Loop to generate code solutions with retry logic.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments with experimental settings.
+        pseudo_messages : list of dict
+            Message history including problem context.
+
+        Returns
+        -------
+        tuple of (str, str, str) or (None, None, None)
+            Code output, revision code, and print code.
+            Returns None tuple if all retries failed.
+
+        Notes
+        -----
+        Generates code solutions for optimization problems with retry logic.
+        Extracts revision and print code from LLM output for execution.
+        """
         while self.programmer_cnt > 0:
             program_start = time.time()
             code_output = self.llm_call_exp(
@@ -1011,6 +1513,27 @@ class Engineer(Agent):
                     return None, None, None
 
     def evaluator_loop_exp(self, args, pseudo_messages):
+        """
+        Loop to evaluate generated code with retry logic.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments with experimental settings.
+        pseudo_messages : list of dict
+            Message history including code context.
+
+        Returns
+        -------
+        tuple of (str, str, str) or (None, None, None)
+            Evaluation output, decision (approve/reject), and comments.
+            Returns None tuple if all retries failed.
+
+        Notes
+        -----
+        Evaluates generated code for correctness and provides feedback.
+        Includes retry logic and error handling for robust evaluation.
+        """
         while self.evaluator_cnt > 0:
             evaluation_start = time.time()
             # evaluation_output = self.llm_call_exp(messages=pseudo_messages,
@@ -1066,6 +1589,32 @@ class Engineer(Agent):
                     return None, None, None
 
     def generate_code_exp(self, args, messages, team_conversation, models_dict):
+        """
+        Generate and evaluate code solutions through iterative development.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments with experimental settings.
+        messages : list of dict
+            Conversation message history.
+        team_conversation : list of dict
+            Team conversation history for context.
+        models_dict : dict
+            Dictionary containing model representations.
+
+        Returns
+        -------
+        tuple of (str, str, str) or (None, None, None)
+            Code output, execution results, and evaluation output.
+            Returns None tuple if all retries failed.
+
+        Notes
+        -----
+        Orchestrates iterative code generation, execution, and evaluation.
+        Includes debugging loops with programmer and evaluator agents working
+        together to create working code solutions.
+        """
         # initialize
         self._init_prompt_template()
         self._init_fake_team_conversation(
@@ -1112,6 +1661,31 @@ class Engineer(Agent):
                     return code_output, execution_rst, evaluation_output
 
     def generate_report_exp(self, args, messages, team_conversation, models_dict):
+        """
+        Generate comprehensive technical report with experimental settings.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments with experimental settings.
+        messages : list of dict
+            Conversation message history.
+        team_conversation : list of dict
+            Team conversation history for context.
+        models_dict : dict
+            Dictionary containing model representations.
+
+        Returns
+        -------
+        list of dict
+            Updated team conversation with technical analysis results.
+
+        Notes
+        -----
+        Orchestrates complete technical analysis workflow including syntax
+        guidance, tool calling, and code generation. Handles both internal
+        and external experiment modes.
+        """
         self._init_cnt()
 
         if args.external_experiment:
@@ -1200,6 +1774,28 @@ class Engineer(Agent):
         return messages, team_conversation
 
     def generate_test_result_exp(self, args, messages, gt_a):
+        """
+        Generate test results by comparing with ground truth answer.
+
+        Parameters
+        ----------
+        args : object
+            Configuration arguments including temperature settings.
+        messages : list of dict
+            Conversation message history.
+        gt_a : str
+            Ground truth answer from human expert.
+
+        Returns
+        -------
+        str
+            Test evaluation result (pass/fail assessment).
+
+        Notes
+        -----
+        Uses test prompt template to evaluate model responses against
+        human expert answers for validation purposes.
+        """
         self._init_prompt_template()
         prompt = self.test_prompt_template.format(human_expert_answer=gt_a)
         pseudo_messages = self.generate_pseudo_messages(messages, [], prompt)

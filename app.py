@@ -20,6 +20,26 @@ from utils import OptiChat_workflow_exp, get_agents
 
 
 def string_generator(long_string, chunk_size=50):
+    """
+    Generate string chunks with time delays for streaming output.
+
+    Parameters
+    ----------
+    long_string : str
+        The complete string to be streamed.
+    chunk_size : int, default=50
+        Size of each chunk to yield.
+
+    Yields
+    ------
+    str
+        String chunks of specified size with 0.1 second delays.
+
+    Notes
+    -----
+    Used for creating streaming text effects in the Streamlit interface
+    to provide better user experience when displaying model descriptions.
+    """
     for i in range(0, len(long_string), chunk_size):
         yield long_string[i : i + chunk_size]
         time.sleep(0.1)  # Optionally add a small delay between each yield
@@ -98,6 +118,26 @@ if not st.session_state.get("detailed_chat_history"):
 
 
 def process():
+    """
+    Process uploaded Pyomo model file and initialize the OptiChat system.
+
+    This function handles the complete workflow for processing an uploaded
+    optimization model including:
+    - Loading and parsing the Pyomo model
+    - Generating model interpretation and illustration
+    - Handling infeasible models with inference generation
+    - Updating the session state and UI
+
+    Returns
+    -------
+    None
+        Updates Streamlit session state with model data and conversation history.
+
+    Notes
+    -----
+    Requires an uploaded file in the session state. Displays error if no file
+    is provided. Updates the chat interface with model interpretation results.
+    """
     if uploaded_file is None:
         st.error("Please upload your model first.")
         return
@@ -184,6 +224,24 @@ def process():
 
 
 def load_json():
+    """
+    Load model and JSON configuration files for OptiChat processing.
+
+    This function handles loading both a Pyomo model file and a corresponding
+    JSON configuration file that contains pre-computed model component
+    descriptions to skip the interpretation step.
+
+    Returns
+    -------
+    None
+        Updates Streamlit session state with model data and representation.
+
+    Notes
+    -----
+    Requires both uploaded_file (Pyomo model) and uploaded_json (component
+    descriptions) to be available in session state. Used for faster loading
+    when component descriptions are already available.
+    """
     if uploaded_file is None:
         st.error("Please upload your model first.")
         return

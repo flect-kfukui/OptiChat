@@ -23,6 +23,29 @@ Example: "Will the optimal value be greatly affected if we have **two more** [co
 
 
 def get_prompts(prompt):
+    """
+    Retrieve and format various prompt templates for model analysis.
+
+    Parameters
+    ----------
+    prompt : str
+        The specific prompt type to retrieve and format.
+
+    Returns
+    -------
+    str
+        Formatted prompt template ready for use with language models.
+
+    Notes
+    -----
+    Central repository for all prompt templates used in the OptiChat system:
+    - Model interpretation prompts for component analysis
+    - Illustration prompts for model description
+    - Inference prompts for user queries
+    - Function guidance prompts for tool usage
+
+    The function handles prompt formatting with appropriate context and examples.
+    """
     need2describe_prompt = """
 Here are the name of {component_type} that need to be described
 -----
@@ -446,6 +469,24 @@ Human Expert Answer:
 
 
 def old_get_fn_json(fn_name):
+    """
+    Generate legacy JSON schema for function definitions.
+
+    Parameters
+    ----------
+    fn_name : str
+        Name of the function to generate schema for.
+
+    Returns
+    -------
+    dict
+        JSON schema template for the specified function.
+
+    Notes
+    -----
+    Legacy function maintained for backward compatibility.
+    Use get_fn_json instead for new implementations.
+    """
     fn_json_template = {
         "type": "function",
         "function": {
@@ -666,6 +707,26 @@ def old_get_fn_json(fn_name):
 
 
 def get_fn_json(fn_name, mode):
+    """
+    Generate JSON schema for function definitions based on mode.
+
+    Parameters
+    ----------
+    fn_name : str
+        Name of the function to generate schema for.
+    mode : str
+        Schema generation mode ('multiple', 'single', 'none', or 'all').
+
+    Returns
+    -------
+    dict
+        JSON schema template for the specified function and mode.
+
+    Notes
+    -----
+    Supports different schema modes for various optimization function types.
+    Mode determines the complexity and structure of the generated schema.
+    """
     if mode == "multiple":
         fn_json_template = {
             "type": "function",
@@ -1129,6 +1190,22 @@ def get_fn_json(fn_name, mode):
 
 
 def get_syntax_guidance_fn_json():
+    """
+    Generate JSON schema for syntax guidance function definition.
+
+    Returns
+    -------
+    dict
+        JSON schema template for the syntax guidance function with parameters
+        for queried function, components, and model specifications.
+
+    Notes
+    -----
+    Creates the function definition schema used by the Engineer agent to
+    generate syntax reminders and guidance for optimization model analysis.
+    The schema defines parameters for function selection, component identification,
+    and model targeting for technical analysis tasks.
+    """
     fn_json_template = {
         "type": "function",
         "function": {
@@ -1160,6 +1237,29 @@ def get_syntax_guidance_fn_json():
 
 
 def get_tools(fn_names):
+    """
+    Generate tool configurations for different syntax modes.
+
+    Parameters
+    ----------
+    fn_names : list of str
+        List of function names to create tools for.
+
+    Returns
+    -------
+    tuple of (list, list, list, list, str)
+        - multiple_tools: Tools for multiple index specifications
+        - single_tools: Tools for single index specifications
+        - none_tools: Tools for non-indexed components
+        - all_tools: Combined tools for all modes
+        - tool_choice: Default tool choice setting ("auto")
+
+    Notes
+    -----
+    Creates JSON schema definitions for different function calling modes
+    based on component indexing requirements. Used to configure the
+    Engineer agent's tool calling capabilities.
+    """
     multiple_tools = []
     single_tools = []
     none_tools = []
@@ -1174,6 +1274,19 @@ def get_tools(fn_names):
 
 
 def get_syntax_guidance_tool():
+    """
+    Generate tool definition for syntax guidance functionality.
+
+    Returns
+    -------
+    list
+        List containing the syntax guidance function JSON schema.
+
+    Notes
+    -----
+    Creates the tool definition used by the Engineer agent for generating
+    syntax guidance and recommendations for optimization model queries.
+    """
     syntax_guidance_fn_json = get_syntax_guidance_fn_json()
     syntax_guidance_tool = [syntax_guidance_fn_json]
     return syntax_guidance_tool

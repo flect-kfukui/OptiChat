@@ -17,6 +17,30 @@ from pyomo.opt import SolverFactory, SolverStatus, TerminationCondition
 
 
 def find_lhs_params(constraint_expr, param_names, var_names):
+    """
+    Find parameters that appear on the left-hand side (LHS) of constraints.
+
+    Parameters
+    ----------
+    constraint_expr : str
+        String representation of the constraint expression to analyze.
+    param_names : list of str
+        List of parameter names to search for in the constraint.
+    var_names : list of str
+        List of variable names to search for in the constraint.
+
+    Returns
+    -------
+    set
+        Set of parameter names that appear on the LHS of the constraint,
+        identified by their multiplicative relationship with variables.
+
+    Notes
+    -----
+    Analyzes constraint expressions to determine which parameters are
+    coefficients of variables (LHS) vs. right-hand side constants (RHS).
+    Uses parentheses analysis and operator precedence to make this distinction.
+    """
     lhs_params = set()
     lhs_params_coefs = {}
 
@@ -44,6 +68,21 @@ def find_lhs_params(constraint_expr, param_names, var_names):
     parts = final_parts
 
     def locate_name(names, parts):
+        """
+        Locate indices of specified names within expression parts.
+
+        Parameters
+        ----------
+        names : list
+            Names to search for in the expression parts.
+        parts : list
+            Tokenized expression parts to search within.
+
+        Returns
+        -------
+        dict
+            Dictionary mapping each found name to its index positions.
+        """
         dict = {}
         for name in names:
             if name in parts:
@@ -53,6 +92,19 @@ def find_lhs_params(constraint_expr, param_names, var_names):
         return dict
 
     def in_parentheses(index):
+        """
+        Count parentheses balance at given index position.
+
+        Parameters
+        ----------
+        index : int
+            Position in parts list to check parentheses balance.
+
+        Returns
+        -------
+        tuple of (int, int)
+            Number of left and right parentheses before the index.
+        """
         lbrace = 0
         rbrace = 0
         for i in range(index):
@@ -112,7 +164,33 @@ def find_lhs_params(constraint_expr, param_names, var_names):
 
 def pyomo2json(model, termination_condition="Unknown"):
     """
-    Convert a Pyomo model to a JSON string.
+    Convert a Pyomo optimization model to JSON representation.
+
+    Parameters
+    ----------
+    model : pyomo.core.base.PyomoModel.ConcreteModel
+        The Pyomo optimization model to convert.
+    termination_condition : str or TerminationCondition, default="Unknown"
+        The solver termination condition for the model.
+
+    Returns
+    -------
+    dict
+        Dictionary representation containing:
+        - model_class: The original Pyomo model object
+        - model_status: Solver termination condition
+        - model_type: Problem type ("LP", "IP", etc.)
+        - components: Organized model components (sets, parameters, variables,
+          constraints, objectives) with metadata
+        - Each component includes name, indexing info, descriptions, relationships
+
+    Notes
+    -----
+    - Automatically detects problem type (LP/IP) based on variable domains
+    - Identifies parameter roles (LHS coefficients vs RHS constants)
+    - Tracks relationships between parameters/variables and constraints
+    - Extracts index sets and component descriptions from doc strings
+    - Handles both indexed and non-indexed components
     """
     model_dict = {}
     # model_dict["model name"] = model.name
@@ -263,6 +341,27 @@ def pyomo2json(model, termination_condition="Unknown"):
 
 
 def iis2json(ilp_path, model_dict):
+    """
+    Extract Irreducible Infeasible Subsystem (IIS) information from ILP file.
+
+    Parameters
+    ----------
+    ilp_path : str
+        Path to the ILP file containing IIS information.
+    model_dict : dict
+        Model dictionary to be updated with IIS information.
+
+    Returns
+    -------
+    None
+        Modifies model_dict in place by adding "iis" key with constraint info.
+
+    Notes
+    -----
+    Parses ILP file to identify constraints involved in the infeasibility
+    and extracts their parameters and variables. Only processes models
+    with infeasible or infeasible-or-unbounded termination conditions.
+    """
     constr_names = set()
     iis_dict = {}
     if model_dict["model status"] in [
@@ -296,6 +395,31 @@ def iis2json(ilp_path, model_dict):
 
 
 def initial_loading(file, is_uploaded=True):
+    """
+    Load and initialize a Pyomo optimization model from file.
+
+    Parameters
+    ----------
+    file : file-like object or str
+        If is_uploaded=True, a streamlit uploaded file object.
+        If is_uploaded=False, a file path string.
+    is_uploaded : bool, default=True
+        Whether the file is uploaded via streamlit or loaded from filesystem.
+
+    Returns
+    -------
+    tuple of (dict, str)
+        - models_dict: Dictionary containing model representation and instance
+        - code: String representation of the model code
+
+    Notes
+    -----
+    - Solves the model using Gurobi solver
+    - Creates IIS (Irreducible Infeasible Subsystem) files for infeasible models
+    - Converts model to JSON representation with component analysis
+    - Handles both uploaded files and local file paths
+    - Returns complete model dictionary ready for analysis
+    """
     if is_uploaded:
         code = file.getvalue().decode("utf-8")
         spec = importlib.util.spec_from_loader("uploaded_model", loader=None)
@@ -349,6 +473,26 @@ def initial_loading(file, is_uploaded=True):
 
 
 def iis_translation(model_dict):
+    """
+    Generate human-readable translation of IIS (Irreducible Infeasible Subsystem).
+
+    Parameters
+    ----------
+    model_dict : dict
+        Model dictionary containing IIS information in the "iis" key.
+
+    Returns
+    -------
+    str
+        Human-readable description of constraints, parameters, and variables
+        involved in the infeasibility.
+
+    Notes
+    -----
+    Creates natural language explanation of which constraints are causing
+    infeasibility and what parameters/variables are involved, making the
+    IIS information accessible to non-technical users.
+    """
     iis_dict = model_dict["iis"]
     translation = ""
     for con_name in iis_dict:
@@ -374,6 +518,27 @@ def iis_translation(model_dict):
 
 
 def update_model_representation(models_dict, model_name="model_1"):
+    """
+    Update model representation dictionary by copying from specified model.
+
+    Parameters
+    ----------
+    models_dict : dict
+        Dictionary containing multiple model representations.
+    model_name : str, default="model_1"
+        Key identifying which model to use as reference for updating.
+
+    Returns
+    -------
+    None
+        Modifies models_dict in place by creating/updating "model_representation" key.
+
+    Notes
+    -----
+    Creates a cleaned version of the model dictionary by copying all components
+    except index_set objects, which are not serializable. Used to prepare
+    model data for JSON serialization and agent processing.
+    """
     models_dict["model_representation"] = {}
     model_representation = models_dict["model_representation"]
     ref_model_dict = models_dict[model_name]
@@ -412,6 +577,25 @@ def update_model_representation(models_dict, model_name="model_1"):
 
 
 def extract_component_descriptions(models_dict):
+    """
+    Extract component descriptions from model representation dictionary.
+
+    Parameters
+    ----------
+    models_dict : dict
+        Dictionary containing model representation with component information.
+
+    Returns
+    -------
+    dict
+        Deep copy of component descriptions organized by component type
+        (sets, parameters, variables, constraints, objectives).
+
+    Notes
+    -----
+    Used to provide component descriptions to agents for natural language
+    understanding of the optimization model structure and semantics.
+    """
     ref_model_dict = models_dict["model_representation"]["components"]
     component_descriptions = copy.deepcopy(ref_model_dict)
     return component_descriptions
@@ -454,9 +638,28 @@ def replace(src_code: str, old_code: str, new_code: str) -> str:
 
 def insert_code(src_code: str, new_lines: str, code_type: str) -> str:
     """
-    ADAPTED FROM AUTOGEN: https://microsoft.github.io/autogen/docs/notebooks/agentchat_nestedchat_optiguide/
+    Insert code patch into source code at designated location.
 
-    insert a code patch into the source code.
+    Adapted from AUTOGEN: https://microsoft.github.io/autogen/docs/notebooks/agentchat_nestedchat_optiguide/
+
+    Parameters
+    ----------
+    src_code : str
+        The original source code to modify.
+    new_lines : str
+        The new code to insert into the source code.
+    code_type : str
+        Type identifier for the code insertion (currently unused).
+
+    Returns
+    -------
+    str
+        Modified source code with new_lines inserted at the designated location.
+
+    Notes
+    -----
+    Currently replaces "# YOUR CODE GOES HERE" placeholder with the new code.
+    The code_type parameter is available for future extensibility.
     """
     # # # for now, we have # OPTICHAT REVISION CODE GOES HERE and # OPTICHAT PRINT CODE GOES HERE
     # # return replace(src_code, '# CODE GOES HERE', new_lines)
@@ -470,6 +673,26 @@ def insert_code(src_code: str, new_lines: str, code_type: str) -> str:
 
 
 def run_with_exec(src_code: str):
+    """
+    Execute Python source code and capture both output and exceptions.
+
+    Parameters
+    ----------
+    src_code : str
+        Python source code to execute.
+
+    Returns
+    -------
+    str
+        Captured stdout output from execution, plus traceback if exception occurred.
+
+    Notes
+    -----
+    Executes code in isolated local namespace and redirects stdout to capture
+    print statements and other output. If an exception occurs, includes the
+    full traceback in the returned string. Used for safe code execution
+    during model analysis and debugging.
+    """
     locals_dict = {}
     output = io.StringIO()
 
@@ -484,21 +707,74 @@ def run_with_exec(src_code: str):
 
 
 def var_in_con(constraint_expr):
+    """
+    Extract variables from a constraint expression.
+
+    Parameters
+    ----------
+    constraint_expr : pyomo expression
+        The constraint expression to analyze.
+
+    Returns
+    -------
+    list
+        List of variables found in the constraint expression.
+
+    Notes
+    -----
+    Uses Pyomo's identify_variables function to find all variables
+    present in the given constraint expression.
+    """
     vars_list = list(identify_variables(constraint_expr))
     return vars_list
 
 
 def param_in_con(constraint_expr):
+    """
+    Extract parameters from a constraint expression.
+
+    Parameters
+    ----------
+    constraint_expr : pyomo expression
+        The constraint expression to analyze.
+
+    Returns
+    -------
+    list
+        List of mutable parameters found in the constraint expression.
+
+    Notes
+    -----
+    Uses Pyomo's identify_mutable_parameters function to find all mutable
+    parameters present in the given constraint expression.
+    """
     params_list = list(identify_mutable_parameters(constraint_expr))
     return params_list
 
 
 def get_files_generator(folder_name):
     """
-    Get all the .py files in the folder
-    folder_name = "video_showcase"
-    py_file_names = get_files_generator(folder_name)
-    a generator of ['video_showcase/pdi_inf_1.py', 'video_showcase/pdi_inf_2.py']
+    Generate file paths for all Python files in a folder.
+
+    Parameters
+    ----------
+    folder_name : str
+        Name of the folder to search for Python files.
+
+    Yields
+    ------
+    str
+        Full path to each Python file found in the folder.
+
+    Examples
+    --------
+    >>> list(get_files_generator("video_showcase"))
+    ['video_showcase/pdi_inf_1.py', 'video_showcase/pdi_inf_2.py']
+
+    Notes
+    -----
+    Only returns files with .py extension. Uses generator pattern
+    for memory efficiency when dealing with large directories.
     """
     files_and_dirs = os.listdir(folder_name)
     for f in files_and_dirs:
@@ -508,11 +784,31 @@ def get_files_generator(folder_name):
 
 def get_files(folder_name):
     """
-    Get all the .py files in the folder
-    folder_name = "video_showcase"
-    py_file_names = get_files_generator(folder_name)
+    Get all Python files in a folder, separated by feasible/infeasible.
+
+    Parameters
+    ----------
+    folder_name : str
+        Name of the folder to search for Python files.
+
+    Returns
+    -------
+    tuple of (list, list)
+        - infeasible_files: List of paths to infeasible model files (contain "_inf_")
+        - feasible_files: List of paths to feasible model files (no "_inf_")
+
+    Examples
+    --------
+    >>> infeas, feas = get_files("video_showcase")
+    >>> print(infeas)
     ['video_showcase/pdi_inf_1.py', 'video_showcase/pdi_inf_2.py']
-    then split it into two lists, one is for feasible models, the other is for infeasible models
+    >>> print(feas)
+    ['video_showcase/pdi.py', 'video_showcase/other.py']
+
+    Notes
+    -----
+    Categorizes files based on "_inf_" pattern in filename to distinguish
+    between feasible and infeasible optimization model examples.
     """
     files_and_dirs = os.listdir(folder_name)
     infeasible_files = []
@@ -547,8 +843,24 @@ def get_files(folder_name):
 
 def get_skipJSON(model_representation):
     """
-    get the model description and description of every component
-    skipJSON is the json that help skip the process of calling interpreter (interpret, illustrate, infer)
+    Extract model and component descriptions for quick loading.
+
+    Parameters
+    ----------
+    model_representation : dict
+        Dictionary containing complete model representation with descriptions.
+
+    Returns
+    -------
+    dict
+        Simplified JSON containing only model description and component
+        descriptions, used to skip the interpretation process.
+
+    Notes
+    -----
+    Creates a lightweight JSON structure that helps skip the time-consuming
+    model interpretation process when component descriptions are already
+    available from previous analysis.
     """
     COMPONENT_TYPES = ["sets", "parameters", "variables", "constraints", "objective"]
     skipJSON = {
@@ -568,7 +880,27 @@ def get_skipJSON(model_representation):
 
 def feed_skipJSON(skipJSON, models_dict, queried_model="model_1"):
     """
-    feed the skipJSON to the models_dict['queried_model']
+    Load pre-computed descriptions into model dictionary.
+
+    Parameters
+    ----------
+    skipJSON : dict
+        Dictionary containing model and component descriptions from get_skipJSON().
+    models_dict : dict
+        Dictionary containing model representations to be updated.
+    queried_model : str, default="model_1"
+        Key identifying which model in models_dict to update.
+
+    Returns
+    -------
+    dict
+        Updated models_dict with descriptions loaded from skipJSON.
+
+    Notes
+    -----
+    Populates model dictionary with pre-computed descriptions to avoid
+    re-running the interpretation process. Used for faster loading when
+    component descriptions are already available.
     """
     COMPONENT_TYPES = ["sets", "parameters", "variables", "constraints", "objective"]
     model_dict = models_dict[queried_model]

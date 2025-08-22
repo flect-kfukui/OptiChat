@@ -32,6 +32,32 @@ from prompts import get_prompts, get_syntax_guidance_tool, get_tools
 
 
 def get_agents(fn_names, client, llm="gpt-4-turbo-preview"):
+    """
+    Initialize and configure all agent instances for the OptiChat system.
+
+    Parameters
+    ----------
+    fn_names : list of str
+        List of function names available for the engineer agent's tools.
+    client : OpenAI.Client
+        OpenAI client instance for API calls.
+    llm : str, default="gpt-4-turbo-preview"
+        Language model identifier to use for all agents.
+
+    Returns
+    -------
+    tuple of (Interpreter, Explainer, Engineer, Coordinator)
+        Configured agent instances ready for optimization model analysis:
+        - Interpreter: Analyzes and describes model components
+        - Explainer: Provides detailed explanations of results
+        - Engineer: Performs technical analysis and tool calls
+        - Coordinator: Orchestrates multi-agent collaboration
+
+    Notes
+    -----
+    Configures engineer with appropriate tools based on available functions
+    and sets up coordinator with explainer and engineer as sub-agents.
+    """
     interpreter = Interpreter(client=client, llm=llm)
     explainer = Explainer(client=client, llm=llm)
 
@@ -55,6 +81,21 @@ def get_agents(fn_names, client, llm="gpt-4-turbo-preview"):
 
 
 def save_team_conversation(team_conversation, filename):
+    """
+    Save team conversation history to a file.
+
+    Parameters
+    ----------
+    team_conversation : list of dict
+        List of conversation messages from different agents.
+    filename : str
+        Path to the output file for saving the conversation.
+
+    Notes
+    -----
+    Saves each conversation message as a separate JSON line in the file
+    for later analysis and debugging purposes.
+    """
     with open(filename, "w") as f:
         for message in team_conversation:
             f.write(json.dumps(message) + "\n")
@@ -63,6 +104,40 @@ def save_team_conversation(team_conversation, filename):
 def OptiChat_workflow_exp(
     args, coordinator, engineer, explainer, messages, models_dict
 ):
+    """
+    Execute the main OptiChat workflow with multi-agent coordination.
+
+    Parameters
+    ----------
+    args : object
+        Configuration object containing experiment settings and parameters.
+    coordinator : Coordinator
+        Coordinator agent instance for orchestrating multi-agent collaboration.
+    engineer : Engineer
+        Engineer agent instance for technical analysis and tool execution.
+    explainer : Explainer
+        Explainer agent instance for providing detailed explanations.
+    messages : list of dict
+        Chat message history with role and content keys.
+    models_dict : dict
+        Dictionary containing optimization model representations and metadata.
+
+    Returns
+    -------
+    tuple of (list, list)
+        - Updated messages list with new assistant responses
+        - Team conversation history with agent interactions
+
+    Notes
+    -----
+    Implements a multi-round conversation system where:
+    1. Coordinator decides which agent should handle the current query
+    2. Selected agent (Engineer or Explainer) processes the request
+    3. Results are integrated back into conversation history
+    4. Process continues until completion or max rounds reached
+
+    Tracks timing for different agent operations for performance analysis.
+    """
     team_conversation = []
     rounds = 0
 

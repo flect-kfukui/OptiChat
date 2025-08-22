@@ -20,6 +20,21 @@ from extractor import pyomo2json
 
 
 def fnArgsDecoder(queried_components):
+    """
+    Decode function arguments by converting string representations to appropriate types.
+
+    Parameters
+    ----------
+    queried_components : list of dict
+        List of component dictionaries containing query parameters to be decoded.
+
+    Returns
+    -------
+    list of dict
+        Processed list of component dictionaries with decoded values.
+        String values "none"/"null" are converted to None, "__all__" to slice(None).
+        Tuple and list values are processed recursively with same conversions.
+    """
     for queried_component in queried_components:
         for key, value in queried_component.items():
             if isinstance(value, str):
@@ -50,6 +65,25 @@ def fnArgsDecoder(queried_components):
 
 
 def old_fnArgsDecoder(queried_components):
+    """
+    Legacy function for decoding function arguments with expanded syntax support.
+
+    Parameters
+    ----------
+    queried_components : list of dict
+        List of component dictionaries containing query parameters to be decoded.
+
+    Returns
+    -------
+    list of dict
+        Processed list of component dictionaries with decoded values.
+        Supports more complex string patterns including slice expressions.
+
+    Notes
+    -----
+    This function is deprecated in favor of fnArgsDecoder. It provides backward
+    compatibility for more complex slice notations and eval-based conversions.
+    """
     for queried_component in queried_components:
         for key, value in queried_component.items():
             if isinstance(value, str):
@@ -96,11 +130,45 @@ def old_fnArgsDecoder(queried_components):
 
 
 def get_component_type(name, m):
+    """
+    Determine the component type of a given component name in a model dictionary.
+
+    Parameters
+    ----------
+    name : str
+        The name of the component to look up.
+    m : dict
+        Model dictionary containing component information organized by type.
+
+    Returns
+    -------
+    str or None
+        Component type ("parameters", "variables", "sets", "constraints", "objective")
+        if found, None otherwise.
+    """
     TYPES = ["parameters", "variables", "sets", "constraints", "objective"]
     return next((c_type for c_type in TYPES if name in m["components"][c_type]), None)
 
 
 def get_new_model_name(queried_model):
+    """
+    Generate a new model name by incrementing the numeric suffix.
+
+    Parameters
+    ----------
+    queried_model : str
+        Current model name in the format "prefix_number".
+
+    Returns
+    -------
+    str
+        New model name with incremented numeric suffix.
+
+    Examples
+    --------
+    >>> get_new_model_name("model_1")
+    "model_2"
+    """
     prefix, number = queried_model.rsplit("_", 1)
     incremented_number = int(number) + 1
     new_model_name = f"{prefix}_{incremented_number}"
@@ -113,6 +181,33 @@ def syntax_guidance(
     queried_model: str,
     models_dict,
 ):
+    """
+    Generate syntax guidance for function calls based on model components.
+
+    Parameters
+    ----------
+    queried_function : str
+        Name of the function to provide guidance for.
+        Must be one of: "feasibility_restoration", "sensitivity_analysis",
+        "components_retrival", "evaluate_modification", "external_tools".
+    queried_components : list of str
+        List of component names to analyze for syntax guidance.
+    queried_model : str
+        Name of the model to query.
+    models_dict : dict
+        Dictionary containing model information and component details.
+
+    Returns
+    -------
+    tuple of (str, str)
+        - Syntax output string with detailed guidance
+        - Syntax mode indicating index complexity ("single", "multiple", "all", "none")
+
+    Raises
+    ------
+    AssertionError
+        If queried_function is not in the recognized function list.
+    """
 
     FUNCTIONS = [
         "feasibility_restoration",
@@ -268,6 +363,35 @@ Make sure the delta value is consistent with the positivity/negativity of the pa
 def feasibility_restoration(
     queried_components: List[Dict], queried_model: str, models_dict
 ):
+    """
+    Restore feasibility of an infeasible optimization model by adjusting parameters.
+
+    Parameters
+    ----------
+    queried_components : list of dict
+        List of component dictionaries containing parameter names and indexes to modify.
+        Each dict should have 'component_name' and 'component_indexes' keys.
+    queried_model : str
+        Name of the infeasible model to restore.
+    models_dict : dict
+        Dictionary containing all model information and instances.
+
+    Returns
+    -------
+    str
+        Feedback message describing the feasibility restoration results, including:
+        - Parameter changes needed to restore feasibility
+        - New model name and status
+        - Analysis recommendations for user
+
+    Notes
+    -----
+    - Only works on models with infeasible or infeasibleOrUnbounded status
+    - Adds positive and negative slack variables to RHS parameters
+    - Solves slack minimization problem to find minimal feasible changes
+    - Creates new model instance with "_n+1" suffix
+    - Has 5-minute time limit for solving
+    """
     queried_model_dict = models_dict[queried_model]
 
     if queried_model_dict["model status"] not in [
@@ -443,6 +567,35 @@ Users need to provide a valid parameter for feasibility restoration."""
 
 
 def sensitivity_analysis(queried_components: List[Dict], queried_model, models_dict):
+    """
+    Perform sensitivity analysis on linear programming model parameters.
+
+    Parameters
+    ----------
+    queried_components : list of dict
+        List of component dictionaries containing parameter names and indexes to analyze.
+        Each dict should have 'component_name' and 'component_indexes' keys.
+    queried_model : str
+        Name of the model to analyze.
+    models_dict : dict
+        Dictionary containing all model information and instances.
+
+    Returns
+    -------
+    str
+        Feedback message containing sensitivity analysis results:
+        - Impact of parameter perturbations on optimal objective value
+        - Dual value calculations and interpretations
+        - Recommendations for user analysis
+
+    Notes
+    -----
+    - Only works on feasible linear programming models
+    - Only supports RHS parameters (right-hand side of constraints)
+    - Computes dual values to determine sensitivity
+    - Uses symbolic differentiation to find parameter coefficients
+    - Automatically solves model with dual suffixes if not already present
+    """
     queried_model_dict = models_dict[queried_model]
     model = queried_model_dict["model class"].clone()
 
@@ -621,6 +774,37 @@ or if they are particularly interested in these parameters, they must specify a 
 
 
 def components_retrival(queried_components: List[Dict], queried_model, models_dict):
+    """
+    Retrieve current values or expressions of model components.
+
+    Parameters
+    ----------
+    queried_components : list of dict
+        List of component dictionaries containing component names and indexes to
+        retrieve. Each dict should have 'component_name' and 'component_indexes' keys.
+    queried_model : str
+        Name of the model to query.
+    models_dict : dict
+        Dictionary containing all model information and instances.
+
+    Returns
+    -------
+    str
+        Feedback message containing component values and expressions:
+        - Parameter values
+        - Variable values
+        - Set data
+        - Constraint expressions
+        - Objective function values
+        - Recommendations for interpretation
+
+    Notes
+    -----
+    - Supports all component types: parameters, variables, sets, constraints, objectives
+    - Handles indexed and non-indexed components
+    - Works with tuple, slice, int, str, and None index specifications
+    - Provides human-readable descriptions with physical meanings
+    """
     queried_model_dict = models_dict[queried_model]
     model = queried_model_dict["model class"].clone()
     feedback = f"In the {queried_model}, "
@@ -744,6 +928,38 @@ def components_retrival(queried_components: List[Dict], queried_model, models_di
 
 
 def evaluate_modification(queried_components: List[Dict], queried_model, models_dict):
+    """
+    Evaluate the impact of specific parameter modifications on model behavior.
+
+    Parameters
+    ----------
+    queried_components : list of dict
+        List of component dictionaries containing modification specifications.
+        Each dict should have keys: 'component_name', 'component_indexes',
+        'operation', and 'delta'.
+    queried_model : str
+        Name of the model to modify and evaluate.
+    models_dict : dict
+        Dictionary containing all model information and instances.
+
+    Returns
+    -------
+    str
+        Feedback message containing evaluation results:
+        - Description of modifications made
+        - New model status and objective value
+        - Comparison with original model performance
+        - Analysis recommendations for user
+
+    Notes
+    -----
+    - Requires specific modification extents (operation and delta values)
+    - Supports operations: "=", "+", "-", "*", "/" with numeric delta
+    - Parameters are changed, variables are fixed to new values
+    - Creates new model instance with "_n+1" suffix
+    - Solves modified model with 5-minute time limit
+    - Handles feasible, infeasible, and time-limited results
+    """
     queried_model_dict = models_dict[queried_model]
     model = queried_model_dict["model class"].clone()
     for obj_name, obj in model.component_map(pe.Objective).items():
