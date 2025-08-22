@@ -21,3 +21,6 @@ git secrets --install
 git secrets --register-aws
 git secrets --add 'sk-ant-[a-zA-Z0-9-]+'
 git secrets --add 'sk-proj-[a-zA-Z0-9-]+'
+
+# solver
+sudo apt-get isntall -y coinor-cbc
