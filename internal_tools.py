@@ -1,25 +1,21 @@
 import copy
 import random
-import sys
-import time
-
-# from get_code_from_markdown import *
-from contextlib import redirect_stdout
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import pyomo.environ as pe
+from pyomo.core.base.constraint import ConstraintData, IndexedConstraint
 from pyomo.core.expr.calculus.derivatives import differentiate
 from pyomo.core.expr.visitor import (
     clone_expression,
     identify_mutable_parameters,
     replace_expressions,
 )
-from pyomo.opt import SolverFactory, SolverStatus, TerminationCondition
+from pyomo.opt import SolverFactory, TerminationCondition
 
 from extractor import pyomo2json
 
 
-def fnArgsDecoder(queried_components):
+def fnArgsDecoder(queried_components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Decode function arguments by converting string representations to appropriate types.
 
@@ -61,10 +57,11 @@ def fnArgsDecoder(queried_components):
                     else:
                         value[i] = value_i
                 queried_component[key] = tuple(value)
+
     return queried_components
 
 
-def old_fnArgsDecoder(queried_components):
+def old_fnArgsDecoder(queried_components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Legacy function for decoding function arguments with expanded syntax support.
 
@@ -126,10 +123,11 @@ def old_fnArgsDecoder(queried_components):
                     else:
                         value[i] = value_i
                 queried_component[key] = tuple(value)
+
     return queried_components
 
 
-def get_component_type(name, m):
+def get_component_type(name: str, m: Dict[str, Any]) -> Optional[str]:
     """
     Determine the component type of a given component name in a model dictionary.
 
@@ -150,7 +148,7 @@ def get_component_type(name, m):
     return next((c_type for c_type in TYPES if name in m["components"][c_type]), None)
 
 
-def get_new_model_name(queried_model):
+def get_new_model_name(queried_model: str) -> str:
     """
     Generate a new model name by incrementing the numeric suffix.
 
@@ -179,8 +177,8 @@ def syntax_guidance(
     queried_function: str,
     queried_components: List[str],
     queried_model: str,
-    models_dict,
-):
+    models_dict: Dict[str, Any],
+) -> Tuple[str, str]:
     """
     Generate syntax guidance for function calls based on model components.
 
@@ -226,15 +224,15 @@ def syntax_guidance(
     function_syntax = "function to call: " + queried_function + "\n\n"  #
     queried_model_syntax = "queried_model: " + queried_model + "\n\n"  #
 
-    def get_index_guidance(pattern):
+    def get_index_guidance(pattern: Tuple | int) -> Tuple[str, str]:
         """
         provide index guidance in terms of an indexed pattern,
         supplementary is 'evaluate_modification' or None
         """
 
         if isinstance(pattern, tuple):
-            mode = "multiple"
-            tuple_guidance = f"""
+            mode: str = "multiple"
+            tuple_guidance: str = f"""
 Return a tuple with dimensions to be {len(pattern)}.
 You need to fill in the tuple with the specific indexes provided by the user,
 and the rest of the indexes that are not specified should be "__all__" in string.
@@ -265,8 +263,8 @@ which MUST use "__all__" instead of enumerating all indexes.
             return tuple_guidance, mode
 
         elif isinstance(pattern, int) or isinstance(pattern, str):
-            mode = "single"
-            primitive_guidance = f"""
+            mode: str = "single"
+            primitive_guidance: str = f"""
 When specific index provided, fill in the type of {type(pattern)}
 If no specific index provided, return "__all__" in string
 
@@ -277,8 +275,42 @@ Descriptions like "for all the indexes", "from one to ten (but the size of dimen
 which MUST use "__all__" instead of enumerating all indexes.
 """
             return primitive_guidance, mode
+        else:
+            raise TypeError("pattern must be a tuple or an int or a str")
 
-    def get_complex_guidance(flag):
+    def get_complex_guidance(flag: bool) -> str:
+        """
+        Generate complex syntax guidance for handling multiple component indexes.
+
+        Parameters
+        ----------
+        flag : bool
+            Whether complex syntax guidance is needed. If True, returns detailed
+            guidance for handling multiple indexes and prohibited changes.
+            If False, returns empty string.
+
+        Returns
+        -------
+        str
+            Complex syntax guidance string with examples and instructions for:
+            - Handling multiple indexes in the same dimension
+            - Managing prohibited index changes
+            - Proper queried_components structure formatting
+            Returns empty string if flag is False.
+
+        Notes
+        -----
+        This function provides guidance for complex scenarios where users specify:
+        - Multiple specific indexes that should be handled separately
+        - Constraints on which indexes can or cannot be modified
+        - Examples using a demand parameter indexed by locations (a, b, c)
+
+        Examples
+        --------
+        The guidance includes examples like:
+        - "help me change demand of a and c" -> separate entries for each index
+        - "change demand, but demand of b cannot be changed" -> exclude prohibited indexes
+        """
         example = [
             {"component_name": "dem", "component_indexes": "a"},
             {"component_name": "dem", "component_indexes": "c"},
@@ -299,9 +331,52 @@ queried_components: {example}"""
         else:
             return ""
 
-    def get_supplementary_guidance(fn):
+    def get_supplementary_guidance(fn: str) -> str:
+        """
+        Generate supplementary guidance for specific optimization functions.
+
+        Parameters
+        ----------
+        fn : str
+            The function name for which to provide supplementary guidance.
+            Currently supports "evaluate_modification". Other function names
+            return empty string.
+
+        Returns
+        -------
+        str
+            Supplementary guidance string with detailed instructions for the
+            specified function. Returns empty string if function is not
+            "evaluate_modification".
+
+        Notes
+        -----
+        This function provides function-specific guidance that extends the basic
+        syntax guidance. For "evaluate_modification", it provides detailed
+        instructions on:
+
+        - Default behavior when no modification extent is specified
+        - Available mathematical operations (=, +, -, *, /)
+        - Proper delta value specification
+        - Examples of different modification patterns
+        - Consistency requirements for parameter modifications
+
+        The guidance includes practical examples covering:
+        - Absolute changes ("change it to 5")
+        - Relative increases/decreases ("increase by 5", "decrease by 5%")
+        - Addition/subtraction operations ("have 5 more/less units")
+        - Percentage-based modifications with proper multipliers
+
+        Examples
+        --------
+        For "evaluate_modification", the guidance includes examples like:
+        - "change it to 5" → operation: "=", delta: 5
+        - "increase it by 5%" → operation: "*", delta: 1.05
+        - "decrease it by 5%" → operation: "*", delta: 0.95
+        - "have 5 more units" → operation: "+", delta: 5
+        """
         if fn == "evaluate_modification":
-            supplementary_guidance = f"""
+            supplementary_guidance = """
 When no specific modification extent provided, always return operation: "!" and delta: 0
 
 Otherwise, choose one of the following operations: "+", "-", "*", "/", and fill in the delta value.
@@ -317,12 +392,13 @@ discount it by 5%: operation: "*", delta: 0.95;
 have 5 more units: operation: "+", delta: 5;
 have 5 less units: operation: "-", delta: 5;
 
-Make sure the delta value is consistent with the positivity/negativity of the parameters being modified."""
+Make sure the delta value is consistent with the positivity/negativity of the parameters being modified.
+"""
             return supplementary_guidance
         else:
             return ""
 
-    need_complex_syntax = False
+    need_complex_syntax: bool = False
     ref = []
     syntax_mode = []
     for component_name in queried_components:
@@ -341,6 +417,7 @@ Make sure the delta value is consistent with the positivity/negativity of the pa
             mode_i = "none"
         ref.append({"component_name": component_name, "component_indexes": situation})
         syntax_mode.append(mode_i)
+
     queried_component_syntax = f"queried_components: {ref} \n\n"  #
     complex_syntax = get_complex_guidance(need_complex_syntax)  #
     supplementary = get_supplementary_guidance(queried_function)  #
@@ -361,8 +438,10 @@ Make sure the delta value is consistent with the positivity/negativity of the pa
 
 
 def feasibility_restoration(
-    queried_components: List[Dict], queried_model: str, models_dict
-):
+    queried_components: List[Dict[str, Any]],
+    queried_model: str,
+    models_dict: Dict[str, Any],
+) -> str:
     """
     Restore feasibility of an infeasible optimization model by adjusting parameters.
 
@@ -400,10 +479,10 @@ def feasibility_restoration(
     ]:
         return "The model is not infeasible. No need to restore feasibility. Please confirm with the user."
 
-    model = queried_model_dict["model class"].clone()
     # define slack parameters
+    model: pe.ConcreteModel = queried_model_dict["model class"].clone()
     for component in queried_components:
-        param_name = component["component_name"]
+        param_name: str = component["component_name"]
         param_indexes = component["component_indexes"]
         print(f"param_indexes: {param_indexes}")
 
@@ -413,7 +492,10 @@ def feasibility_restoration(
                 eval_param = eval(f"model.{param_name}")
                 if len(eval_param[param_indexes].index()) <= 0:
                     raise IndexError(
-                        f"Error: Indexes are not valid. This usually happens when the order of indexes in the tuple is incorrect."
+                        (
+                            "Error: Indexes are not valid. This usually happens "
+                            "when the order of indexes in the tuple is incorrect."
+                        )
                     )
 
             if queried_model_dict["components"]["parameters"][param_name]["is_RHS"]:
@@ -448,7 +530,8 @@ This parameter is LHS parameter.
 Changing LHS parameter for feasibility restoration without specifying modification extent
 can extend solving time and risk terminating the optimization process prematurely before finding an optimal solution.
 Users need to try other parameters for feasibility restoration,
-or specify a modification extent (e.g., a 5% increase) to directly assess the impact of this modification, if they are particularly interested in this parameter."""
+or specify a modification extent (e.g., a 5% increase) to directly assess the impact of this modification, if they are particularly interested in this parameter.
+"""
                 return feedback
         else:
             wrong_component_type = component_type
@@ -466,28 +549,30 @@ Users need to provide a valid parameter for feasibility restoration."""
         param_indexes = component["component_indexes"]
         for idx in eval("model." + param_name + ".index_set()"):
             model_param = eval("model." + param_name)
-            iis_param.append((param_name, idx))  ###
+            iis_param.append((param_name, idx))
             expr_param = model_param[idx]
             slack_var_pos = eval("model.slack_pos_" + param_name)[idx]
             slack_var_neg = eval("model.slack_neg_" + param_name)[idx]
             replacements = {id(expr_param): expr_param + slack_var_pos - slack_var_neg}
             replacements_list.append(replacements)
+
     # replace constraints
-    original_consts = []
+    original_consts: list[IndexedConstraint] = []
     for consts_name, consts in model.component_map(pe.Constraint).items():
         original_consts.append(consts)
+
     model.slack_iis_constraints = pe.ConstraintList()
     for consts in original_consts:
         for const_idx in consts.index_set():
             try:
-                const = consts[const_idx]
+                const: ConstraintData = consts[const_idx]
                 new_expr = clone_expression(const.expr)
                 for replacements in replacements_list:
                     new_expr = replace_expressions(new_expr, replacements)
                 model.slack_iis_constraints.add(new_expr)
                 const.deactivate()
             except Exception as e:
-                print(f"Skip the skipped constraint")
+                print(f"Skip the skipped constraint: {e}")
 
     # replace objective
     objectives = model.component_objects(pe.Objective, active=True)
@@ -499,6 +584,7 @@ Users need to provide a valid parameter for feasibility restoration."""
         slack_var_pos = eval("model.slack_pos_" + p)[idx]
         slack_var_neg = eval("model.slack_neg_" + p)[idx]
         new_obj += slack_var_pos + slack_var_neg
+
     model.slack_obj = pe.Objective(expr=new_obj, sense=pe.minimize)
     # solve the model
     opt = SolverFactory("gurobi")
@@ -517,10 +603,10 @@ Users need to provide a valid parameter for feasibility restoration."""
         for p, idx in iis_param:
             feedback = feedback + f"attempt to change {p} at {idx}; \n"
             description = description + f"attempt to change {p}{idx}; \n"
-        feedback = feedback + f"\n\nThe model cannot be solved due to time limit."
+        feedback = feedback + "\n\nThe model cannot be solved due to time limit."
         description = (
             description[:7]
-            + f", which cannot be solved due to time limit."
+            + ", which cannot be solved due to time limit."
             + description[7:]
         )
         new_model_dict["model description"] = description
@@ -541,17 +627,17 @@ Users need to provide a valid parameter for feasibility restoration."""
                 description = (
                     description + f"change {p}{idx} by -{slack_var_neg} unit; \n"
                 )
-        feedback = feedback + f"\n\nThe model now becomes feasible. "
+        feedback = feedback + "\n\nThe model now becomes feasible. "
         feedback = (
             feedback
-            + f"\n\nHelp the user analyze why the feasibility can be restored by these changes. Let user know this new model will be referred to as {new_model_name}."
+            + "\n\nHelp the user analyze why the feasibility can be restored by these changes. Let user know this new model will be referred to as {new_model_name}."
         )
-        description = description[:7] + f", which becomes feasible" + description[7:]
+        description = description[:7] + ", which becomes feasible" + description[7:]
         new_model_dict["model description"] = description
         new_model_dict["model status"] = TerminationCondition.optimal
         models_dict[new_model_name] = new_model_dict
     else:
-        feedback = f"The model remains infeasible after only changing the following: \n"
+        feedback = "The model remains infeasible after only changing the following: \n"
         for p, idx in iis_param:
             idx = "" if idx is None else f" at {idx}"
             feedback = feedback + f"{p}{idx}; \n"
@@ -559,14 +645,18 @@ Users need to provide a valid parameter for feasibility restoration."""
         models_dict[queried_model]["model description"] = description
         feedback = (
             feedback
-            + f"\n\nThis is determined by the nature of the model, rather than an error of internal tools. Help the user analyze why the feasibility is not restored."
+            + "\n\nThis is determined by the nature of the model, rather than an error of internal tools. Help the user analyze why the feasibility is not restored."
         )
 
     feedback = "Feedback from internal tools: \n" + feedback
     return feedback
 
 
-def sensitivity_analysis(queried_components: List[Dict], queried_model, models_dict):
+def sensitivity_analysis(
+    queried_components: List[Dict[str, Any]],
+    queried_model: str,
+    models_dict: Dict[str, Any],
+) -> str:
     """
     Perform sensitivity analysis on linear programming model parameters.
 
@@ -611,7 +701,67 @@ def sensitivity_analysis(queried_components: List[Dict], queried_model, models_d
         feedback = "Feedback from internal tools: \n" + feedback
         return feedback
 
-    def locate_param(param_name, idx, model=model):
+    def locate_param(
+        param_name: str, idx: Any, model: Any = model
+    ) -> List[Dict[str, Any]]:
+        """
+        Locate constraints containing a specific parameter and compute its coefficients.
+
+        This function identifies all constraints in which a given parameter (at a specific
+        index) appears and calculates the coefficient of that parameter in each constraint's
+        expression using symbolic differentiation.
+
+        Parameters
+        ----------
+        param_name : str
+            Name of the parameter to locate within constraints.
+        idx : Any
+            Index of the parameter instance to analyze. Can be int, str, tuple,
+            or None for non-indexed parameters.
+        model : Any, optional
+            Pyomo model object containing the constraints and parameters.
+            Defaults to the model from outer scope.
+
+        Returns
+        -------
+        list of dict
+            List of dictionaries, each containing information about a constraint
+            that includes the specified parameter. Each dictionary has keys:
+            - 'const_name' : str
+                Name of the constraint containing the parameter
+            - 'const_indexes' : Any
+                Index of the specific constraint instance
+            - 'coefficient' : float
+                Coefficient of the parameter in the constraint expression,
+                computed through symbolic differentiation
+
+        Notes
+        -----
+        - Uses symbolic differentiation to compute parameter coefficients
+        - Handles constraint expressions with body, lower, and upper bounds
+        - Coefficient is calculated as: -(∂body/∂param) + (∂lower/∂param) + (∂upper/∂param)
+        - The negative sign on body derivative accounts for standard constraint form
+        - Only processes constraints listed in the parameter's 'cons_in' metadata
+        - Breaks after finding the parameter in each constraint to avoid duplicates
+
+        Examples
+        --------
+        For a parameter 'demand' at index 'location_A' that appears in constraints
+        'supply_balance' and 'capacity_limit', this function returns:
+        
+        [
+            {
+                'const_name': 'supply_balance',
+                'const_indexes': ('location_A', 'time_1'),
+                'coefficient': 1.0
+            },
+            {
+                'const_name': 'capacity_limit', 
+                'const_indexes': ('location_A',),
+                'coefficient': -0.5
+            }
+        ]
+        """
         in_consts = []
         param_name_idx = str(eval("model." + param_name)[idx])
         for const_name in queried_model_dict["components"]["parameters"][param_name][
@@ -655,7 +805,10 @@ def sensitivity_analysis(queried_components: List[Dict], queried_model, models_d
                 eval_param = eval(f"model.{param_name}")
                 if len(eval_param[param_indexes].index()) <= 0:
                     raise IndexError(
-                        f"Error: Indexes are not valid. This usually happens when the order of indexes in the tuple is incorrect."
+                        (
+                            "Error: Indexes are not valid. This usually happens "
+                            "when the order of indexes in the tuple is incorrect."
+                        )
                     )
 
             if queried_model_dict["components"]["parameters"][param_name]["is_RHS"]:
@@ -773,7 +926,11 @@ or if they are particularly interested in these parameters, they must specify a 
     return feedback
 
 
-def components_retrival(queried_components: List[Dict], queried_model, models_dict):
+def components_retrival(
+    queried_components: List[Dict[str, Any]],
+    queried_model: str,
+    models_dict: Dict[str, Any],
+) -> str:
     """
     Retrieve current values or expressions of model components.
 
@@ -820,7 +977,10 @@ def components_retrival(queried_components: List[Dict], queried_model, models_di
 
                 if len(model_component[component_indexes].index()) <= 0:
                     raise IndexError(
-                        f"Error: Indexes are not valid. This usually happens when the order of indexes in the tuple is incorrect."
+                        (
+                            "Error: Indexes are not valid. This usually happens "
+                            "when the order of indexes in the tuple is incorrect."
+                        )
                     )
 
                 for model_component_i in model_component[component_indexes]:
@@ -927,7 +1087,11 @@ def components_retrival(queried_components: List[Dict], queried_model, models_di
     return feedback
 
 
-def evaluate_modification(queried_components: List[Dict], queried_model, models_dict):
+def evaluate_modification(
+    queried_components: List[Dict[str, Any]],
+    queried_model: str,
+    models_dict: Dict[str, Any],
+) -> str:
     """
     Evaluate the impact of specific parameter modifications on model behavior.
 
@@ -975,8 +1139,10 @@ def evaluate_modification(queried_components: List[Dict], queried_model, models_
 
         if component_operation == "!":
             return (
-                "Error: The evaluate_modification function requires a specific modification extent. "
-                "Debug suggestion: distribute this task to operator again and ask them to use sensitivity_analysis function instead."
+                "Error: The evaluate_modification function requires a specific "
+                "modification extent. Debug suggestion: distribute this task to "
+                "operator again and ask them to use sensitivity_analysis "
+                "function instead."
             )
 
         component_delta = str(component["delta"])
@@ -990,7 +1156,10 @@ def evaluate_modification(queried_components: List[Dict], queried_model, models_
 
                 if len(model_component[component_indexes].index()) <= 0:
                     raise IndexError(
-                        f"Error: Indexes are not valid. This usually happens when the order of indexes in the tuple is incorrect."
+                        (
+                            "Error: Indexes are not valid. This usually happens "
+                            "when the order of indexes in the tuple is incorrect."
+                        )
                     )
 
                 for model_component_i in model_component[component_indexes]:

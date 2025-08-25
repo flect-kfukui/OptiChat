@@ -72,6 +72,7 @@ def find_lhs_params(
             final_parts.append(original_term)
         else:
             final_parts.append(part)
+
     parts = final_parts
 
     def locate_name(
