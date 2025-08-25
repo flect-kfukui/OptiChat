@@ -32,6 +32,7 @@ from internal_tools import (
     sensitivity_analysis,
     syntax_guidance,
 )
+from optichat_types import TeamConversationMessage
 from prompts import get_prompts
 
 # import streamlit as st
@@ -208,7 +209,7 @@ class Agent:
     @staticmethod
     def generate_pseudo_messages(
         messages: List[ChatCompletionMessageParam],
-        team_conversation: List[Dict],
+        team_conversation: List[TeamConversationMessage],
         new_prompt: str,
     ) -> List[ChatCompletionMessageParam]:
         """
@@ -218,7 +219,7 @@ class Agent:
         ----------
         messages : list[ChatCompletionMessageParam]
             Original message history.
-        team_conversation : list of dict
+        team_conversation : list[TeamConversationMessage]
             Team conversation history with agent responses.
         new_prompt : str
             New prompt to add to the conversation.
@@ -265,13 +266,15 @@ class Agent:
         )
         return pseudo_messages
 
-    def save_team_conversation(self, team_conversation: List[Dict[str, str]]) -> None:
+    def save_team_conversation(
+        self, team_conversation: List[TeamConversationMessage]
+    ) -> None:
         """
         Save team conversation to a file for debugging and analysis.
 
         Parameters
         ----------
-        team_conversation : list of dict
+        team_conversation : list[TeamConversationMessage]
             List of conversation messages from different agents.
             Each dict should contain 'agent_name' and 'agent_response' keys.
 
@@ -1064,7 +1067,7 @@ class Coordinator(Agent):
     def generate_decision(
         self,
         messages: List[ChatCompletionMessageParam],
-        team_conversation: List[Dict[str, str]],
+        team_conversation: List[TeamConversationMessage],
         agent_name: Any,
         task: Any,
     ) -> Tuple[str, str | Dict[str, Any]]:
@@ -1075,7 +1078,7 @@ class Coordinator(Agent):
         ----------
         messages : list[ChatCompletionMessageParam]
             Original message history from the conversation.
-        team_conversation : list of dict
+        team_conversation : list[TeamConversationMessage]
             History of team conversation with agent responses.
         agent_name : object
             Streamlit text object to display the selected agent name.
@@ -1187,7 +1190,7 @@ class Coordinator(Agent):
         self,
         args: Any,
         messages: List[ChatCompletionMessageParam],
-        team_conversation: List[Dict[str, str]],
+        team_conversation: List[TeamConversationMessage],
     ) -> Dict[str, Any] | None:
         """
         Generate coordination decisions with experimental settings and simplified logic.
@@ -1198,7 +1201,7 @@ class Coordinator(Agent):
             Configuration arguments including temperature, json_mode settings.
         messages : list of dict
             Original message history from the conversation.
-        team_conversation : list of dict
+        team_conversation : list[TeamConversationMessage]
             History of team conversation with agent responses.
 
         Returns
@@ -1323,7 +1326,7 @@ class Explainer(Agent):
         self,
         args: Any,
         messages: List[ChatCompletionMessageParam],
-        team_conversation: List[Dict[str, str]],
+        team_conversation: List[TeamConversationMessage],
     ) -> Stream[ChatCompletionChunk] | str:
         """
         Generate user-friendly explanations from technical analysis results.
@@ -1334,7 +1337,7 @@ class Explainer(Agent):
             Configuration arguments including temperature and streaming settings.
         messages : list[ChatCompletionMessageParam]
             Original message history from the conversation.
-        team_conversation : list of dict
+        team_conversation : list[TeamConversationMessage]
             History of team conversation with technical feedback from other agents.
 
         Returns
@@ -1473,14 +1476,14 @@ class Engineer(Agent):
         self.test_prompt_template: str = get_prompts("test_prompt")  # type: ignore
 
     def _init_fake_team_conversation(
-        self, team_conversation: List[Dict[str, str]], code_wo_labels: str
+        self, team_conversation: List[TeamConversationMessage], code_wo_labels: str
     ) -> None:
         """
         Initialize fake team conversation with code context.
 
         Parameters
         ----------
-        team_conversation : list of dict
+        team_conversation : list[TeamConversationMessage]
             Current team conversation history.
         code_wo_labels : str
             Source code without labels for context.
@@ -1560,6 +1563,7 @@ class Engineer(Agent):
             f"./logs/code_draft/execution_result_{self.debug_times_left}.txt", "w"
         ) as f:
             f.write(execution_rst)
+
         self.fake_team_conversation.append(
             {"agent_name": "Execution result", "agent_response": execution_rst}
         )
@@ -1680,7 +1684,7 @@ class Engineer(Agent):
         self,
         args: Any,
         messages: List[ChatCompletionMessageParam],
-        team_conversation: List[Dict[str, str]],
+        team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
     ) -> Tuple[str, str]:
         """
@@ -1692,7 +1696,7 @@ class Engineer(Agent):
             Configuration arguments with experimental settings.
         messages : list[ChatCompletionMessageParam]
             Conversation message history.
-        team_conversation : list of dict
+        team_conversation : list[TeamConversationMessage]
             Team conversation history for context.
         models_dict : ModelsContainer
             Dictionary containing model representations.
@@ -1764,7 +1768,7 @@ class Engineer(Agent):
         self,
         args: Any,
         messages: List[ChatCompletionMessageParam],
-        team_conversation: List[Dict[str, str]],
+        team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
         syntax_mode: str,
     ) -> str:
@@ -1777,7 +1781,7 @@ class Engineer(Agent):
             Configuration arguments with experimental settings.
         messages : list[ChatCompletionMessageParam]
             Conversation message history.
-        team_conversation : list of dict
+        team_conversation : list[TeamConversationMessage]
             Team conversation history for context.
         models_dict : ModelsContainer
             Dictionary containing model representations.
@@ -2013,7 +2017,7 @@ class Engineer(Agent):
         self,
         args: Any,
         messages: List[ChatCompletionMessageParam],
-        team_conversation: List[Dict[str, str]],
+        team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
     ) -> Tuple[str, str, str]:
         """
@@ -2025,7 +2029,7 @@ class Engineer(Agent):
             Configuration arguments with experimental settings.
         messages : list[ChatCompletionMessageParam]
             Conversation message history.
-        team_conversation : list of dict
+        team_conversation : list[TeamConversationMessage]
             Team conversation history for context.
         models_dict : ModelsContainer
             Dictionary containing model representations.
@@ -2104,9 +2108,9 @@ class Engineer(Agent):
         self,
         args: Any,
         messages: List[ChatCompletionMessageParam],
-        team_conversation: List[Dict[str, str]],
+        team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
-    ) -> Tuple[List[ChatCompletionMessageParam], List[Dict[str, str]]]:
+    ) -> Tuple[List[ChatCompletionMessageParam], List[TeamConversationMessage]]:
         """
         Generate comprehensive technical report with experimental settings.
 
@@ -2116,7 +2120,7 @@ class Engineer(Agent):
             Configuration arguments with experimental settings.
         messages : list[ChatCompletionMessageParam]
             Conversation message history.
-        team_conversation : list of dict
+        team_conversation : list[TeamConversationMessage]
             Team conversation history for context.
         models_dict : ModelsContainer
             Dictionary containing model representations.

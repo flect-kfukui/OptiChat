@@ -17,6 +17,9 @@ from openai.types.chat import (
 
 from agents import Coordinator, Engineer, Explainer, Interpreter
 from extractor import ModelsContainer
+
+# Import the TeamConversationMessage type
+from optichat_types import TeamConversationMessage
 from prompts import get_syntax_guidance_tool, get_tools
 
 _ = load_dotenv(find_dotenv())  # read local .env file
@@ -74,14 +77,14 @@ def get_agents(
 
 
 def save_team_conversation(
-    team_conversation: List[Dict[str, Any]], filename: str
+    team_conversation: List[TeamConversationMessage], filename: str
 ) -> None:
     """
     Save team conversation history to a file.
 
     Parameters
     ----------
-    team_conversation : list of dict
+    team_conversation : list[TeamConversationMessage]
         List of conversation messages from different agents.
     filename : str
         Path to the output file for saving the conversation.
@@ -103,7 +106,7 @@ def OptiChat_workflow_exp(
     explainer: Explainer,
     messages: List[ChatCompletionMessageParam],
     models_dict: ModelsContainer,
-) -> Tuple[List[ChatCompletionMessageParam], List[Dict[str, Any]]]:
+) -> Tuple[List[ChatCompletionMessageParam], List[TeamConversationMessage]]:
     """
     Execute the main OptiChat workflow with multi-agent coordination.
 
@@ -138,7 +141,7 @@ def OptiChat_workflow_exp(
 
     Tracks timing for different agent operations for performance analysis.
     """
-    team_conversation: List[Dict[str, Any]] = []
+    team_conversation: List[TeamConversationMessage] = []
     rounds: int = 0
 
     # set the time in agents to 0
