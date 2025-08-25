@@ -13,7 +13,8 @@ from pyomo.core.expr.visitor import (
 )
 from pyomo.opt import SolverFactory, TerminationCondition
 
-from extractor import ModelDictWithPyomo, ModelsContainer, pyomo2json
+from extractor import pyomo2json
+from optichat_types import ModelDictWithPyomo, ModelsContainer
 
 
 def fnArgsDecoder(queried_components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

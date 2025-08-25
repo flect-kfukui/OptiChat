@@ -16,10 +16,9 @@ from openai.types.chat import (
 )
 
 from agents import Coordinator, Engineer, Explainer, Interpreter
-from extractor import ModelsContainer
 
 # Import the TeamConversationMessage type
-from optichat_types import TeamConversationMessage
+from optichat_types import ModelsContainer, TeamConversationMessage
 from prompts import get_syntax_guidance_tool, get_tools
 
 _ = load_dotenv(find_dotenv())  # read local .env file

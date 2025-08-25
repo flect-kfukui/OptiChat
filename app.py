@@ -9,12 +9,12 @@ from openai import OpenAI
 from pyomo.opt import TerminationCondition
 
 from extractor import (
-    ModelsContainer,
     feed_skipJSON,
     get_skipJSON,
     initial_loading,
     update_model_representation,
 )
+from optichat_types import ModelsContainer
 from utils import OptiChat_workflow_exp, get_agents
 
 

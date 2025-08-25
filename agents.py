@@ -18,12 +18,7 @@ from openai.types.chat import (
 )
 from openai.types.shared_params import ResponseFormatJSONObject, ResponseFormatText
 
-from extractor import (
-    ModelDictWithPyomo,
-    ModelsContainer,
-    extract_component_descriptions,
-    run_with_exec,
-)
+from extractor import extract_component_descriptions, run_with_exec
 from internal_tools import (
     components_retrival,
     evaluate_modification,
@@ -32,7 +27,7 @@ from internal_tools import (
     sensitivity_analysis,
     syntax_guidance,
 )
-from optichat_types import TeamConversationMessage
+from optichat_types import ModelDictWithPyomo, ModelsContainer, TeamConversationMessage
 from prompts import get_prompts
 
 # import streamlit as st
