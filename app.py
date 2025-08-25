@@ -1,9 +1,6 @@
-import io
 import json
 import os
-import tempfile
 import time
-from io import StringIO
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -165,6 +162,7 @@ def process():
     )
     with st.chat_message("assistant"):
         illustration = st.write_stream(illustration_stream)
+
     # update model representation with model description
     st.session_state.models_dict["model_1"]["model description"] = illustration
     update_model_representation(st.session_state.models_dict)
