@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple
 
 feasibility_restoration_fn_description = """
 Use when: The model is infeasible and you need to find out the minimal change to specific [component name] for restoring feasibility.
@@ -24,7 +24,7 @@ Example: "Will the optimal value be greatly affected if we have **two more** [co
 """
 
 
-def get_prompts(prompt: str) -> Union[str, Dict[str, Any]]:
+def get_prompts(prompt: str) -> str | Dict[str, Any]:
     """
     Retrieve and format various prompt templates for model analysis.
 
@@ -35,7 +35,7 @@ def get_prompts(prompt: str) -> Union[str, Dict[str, Any]]:
 
     Returns
     -------
-    str
+    str | Dict[str, Any]
         Formatted prompt template ready for use with language models.
 
     Notes
