@@ -334,7 +334,7 @@ agent_name = st.sidebar.empty()
 st.sidebar.markdown("### Task")
 task = st.sidebar.empty()
 
-
+# Checkbox options to show/hide different sections
 if show_model_representation:
     with model_representation_placeholder.container():
         st.json(st.session_state.models_dict["model_representation"])
@@ -368,13 +368,14 @@ if prompt := st.chat_input("Enter your query here..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    logger.info(f"User prompt: {prompt}")
     updated_messages, team_conversation = OptiChat_workflow_exp(
-        st.session_state,
-        st.session_state.Coordinator,
-        st.session_state.Engineer,
-        st.session_state.Explainer,
-        st.session_state.messages,
-        st.session_state.models_dict,
+        args=st.session_state,
+        coordinator=st.session_state.Coordinator,
+        engineer=st.session_state.Engineer,
+        explainer=st.session_state.Explainer,
+        messages=st.session_state.messages,
+        models_dict=st.session_state.models_dict,
     )
     logger.info(f"OptiChat_out: {updated_messages}")
     st.session_state.messages = updated_messages

@@ -579,6 +579,7 @@ Users need to provide a valid parameter for feasibility restoration."""
     objectives = model.component_objects(pe.Objective, active=True)
     for obj in objectives:
         obj.deactivate()
+
     # minimize the 1-norm of the slacks that are added
     new_obj = 0
     for p, idx in iis_param:
@@ -688,7 +689,7 @@ def sensitivity_analysis(
     - Automatically solves model with dual suffixes if not already present
     """
     queried_model_dict = models_dict[queried_model]
-    model = queried_model_dict["model class"].clone()
+    model: pe.ConcreteModel = queried_model_dict["model class"].clone()
 
     if queried_model_dict["model status"] in [
         TerminationCondition.infeasible,
