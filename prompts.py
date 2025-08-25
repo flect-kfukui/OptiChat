@@ -459,7 +459,7 @@ def get_prompts(prompt: str) -> str | Dict[str, Any]:
     elif prompt == "model_interpretation_json":
         return MODEL_INTERPRETATION_JSON
     elif prompt == "model_illustration_prompt":
-        return MODEL_ILLUSTRATIOIN_PROMPT
+        return MODEL_ILLUSTRATION_PROMPT
     elif prompt == "model_inference_prompt":
         return MODEL_INFERENCE_PROMPT
     elif prompt == "coordinator_prompt":

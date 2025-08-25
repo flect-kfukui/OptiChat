@@ -9,6 +9,7 @@ from contextlib import redirect_stdout
 from typing import Any, Dict, Generator, List, Set, Tuple
 
 import pyomo.environ as pe
+from loguru import logger
 from pyomo.contrib import iis
 from pyomo.core.base.constraint import ConstraintData, IndexedConstraint
 from pyomo.core.base.objective import ScalarObjective
@@ -485,7 +486,7 @@ def initial_loading(
     results = solver.solve(model, tee=True)
     status = results.solver.status
     termination_condition = results.solver.termination_condition
-    print(
+    logger.debug(
         f"Model {model_name} loaded, "
         f"Solver Status: {status}, Termination Condition: {termination_condition}"
     )
@@ -500,8 +501,8 @@ def initial_loading(
             model, "logs/ilps/" + model_name + ".ilp", solver="gurobi"
         )
         ilp_path = os.path.abspath("logs/ilps/" + model_name + ".ilp")
-        print("model name:", model_name)
-        print(f"ilp name: {ilp_name}, ilp path: {ilp_path}")
+        logger.debug("model name:", model_name)
+        logger.debug(f"ilp name: {ilp_name}, ilp path: {ilp_path}")
 
     model_dict = pyomo2json(model, termination_condition=termination_condition)
     model_dict = iis2json(ilp_path, model_dict)

@@ -3,6 +3,7 @@ import random
 from typing import Any, Dict, List, Optional, Tuple
 
 import pyomo.environ as pe
+from loguru import logger
 from pyomo.core.base.constraint import ConstraintData, IndexedConstraint
 from pyomo.core.expr.calculus.derivatives import Modes, differentiate
 from pyomo.core.expr.visitor import (
@@ -484,7 +485,7 @@ def feasibility_restoration(
     for component in queried_components:
         param_name: str = component["component_name"]
         param_indexes = component["component_indexes"]
-        print(f"param_indexes: {param_indexes}")
+        logger.debug(f"param_indexes: {param_indexes}")
 
         component_type = get_component_type(param_name, queried_model_dict)
         if component_type == "parameters":
@@ -572,7 +573,7 @@ Users need to provide a valid parameter for feasibility restoration."""
                 model.slack_iis_constraints.add(new_expr)
                 const.deactivate()
             except Exception as e:
-                print(f"Skip the skipped constraint: {e}")
+                logger.debug(f"Skip the skipped constraint: {e}")
 
     # replace objective
     objectives = model.component_objects(pe.Objective, active=True)
@@ -798,7 +799,7 @@ def sensitivity_analysis(
     for component in queried_components:
         param_name = component["component_name"]
         param_indexes = component["component_indexes"]
-        print(f"param_indexes: {param_indexes}")
+        logger.debug(f"param_indexes: {param_indexes}")
         component_type = get_component_type(param_name, queried_model_dict)
         if component_type == "parameters":
 
@@ -872,7 +873,9 @@ or if they are particularly interested in these parameters, they must specify a 
             return feedback
 
     # duals = []
-    print(f' Does this model have model.dual? {model.find_component("dual") is None}')
+    logger.debug(
+        f' Does this model have model.dual? {model.find_component("dual") is None}'
+    )
     if model.find_component("dual") is None:
         model.dual = pe.Suffix(direction=pe.Suffix.IMPORT_EXPORT)
         opt = SolverFactory("gurobi")
@@ -968,7 +971,7 @@ def components_retrival(
     for component in queried_components:
         component_name = component["component_name"]
         component_indexes = component["component_indexes"]
-        print(f"component_indexes: {component_indexes}")
+        logger.debug(f"component_indexes: {component_indexes}")
         model_component = eval("model." + component_name)
 
         if isinstance(component_indexes, tuple):
@@ -1148,9 +1151,9 @@ def evaluate_modification(
             )
 
         component_delta = str(component["delta"])
-        print(f"component_indexes: {component_indexes}")
-        print(f"component_operation: {component_operation}")
-        print(f"component_delta: {component_delta}")
+        logger.debug(f"component_indexes: {component_indexes}")
+        logger.debug(f"component_operation: {component_operation}")
+        logger.debug(f"component_delta: {component_delta}")
         model_component = eval("model." + component_name)
 
         if isinstance(component_indexes, tuple):

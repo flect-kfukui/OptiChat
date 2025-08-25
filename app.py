@@ -4,6 +4,7 @@ import time
 
 import streamlit as st
 from dotenv import load_dotenv
+from loguru import logger
 from openai import OpenAI
 from pyomo.opt import TerminationCondition
 
@@ -375,7 +376,7 @@ if prompt := st.chat_input("Enter your query here..."):
         st.session_state.messages,
         st.session_state.models_dict,
     )
-    print("OptiChat_out:", updated_messages)
+    logger.info(f"OptiChat_out: {updated_messages}")
     st.session_state.messages = updated_messages
 
     # # update detailed chat history

@@ -5,9 +5,14 @@ from typing import Any, Dict, List, Optional, Tuple
 # Streamlit
 import streamlit as st
 from dotenv import find_dotenv, load_dotenv
+from loguru import logger
 
 # GPT
 from openai import OpenAI
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+)
 
 from agents import Coordinator, Engineer, Explainer, Interpreter
 from prompts import get_syntax_guidance_tool, get_tools
@@ -94,9 +99,9 @@ def OptiChat_workflow_exp(
     coordinator: Coordinator,
     engineer: Engineer,
     explainer: Explainer,
-    messages: List[Dict[str, Any]],
+    messages: List[ChatCompletionMessageParam],
     models_dict: Dict[str, Any],
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+) -> Tuple[List[ChatCompletionMessageParam], List[Dict[str, Any]]]:
     """
     Execute the main OptiChat workflow with multi-agent coordination.
 
@@ -137,7 +142,7 @@ def OptiChat_workflow_exp(
     # set the time in agents to 0
     coordinator.coordination_time = 0
     engineer.syntax_time = 0
-    engineer.programing_time = 0
+    engineer.programming_time = 0
     engineer.evaluation_time = 0
     explainer.explanation_time = 0
 
@@ -152,8 +157,12 @@ def OptiChat_workflow_exp(
         coordinator.coordination_time += coordinator_end - coordinator_start
 
         if not decision:
-            print("coordinator failed to generate decision")
-            messages.append({"role": "assistant", "content": "LLM failed"})
+            logger.debug("coordinator failed to generate decision")
+            messages.append(
+                ChatCompletionAssistantMessageParam(
+                    {"role": "assistant", "content": "LLM failed"}
+                )
+            )
             return messages, team_conversation
 
         else:
@@ -168,7 +177,7 @@ def OptiChat_workflow_exp(
 
             elif decision["agent_name"] == "Explainer":
                 explainer_start: float = time.time()
-                explanation: Any = explainer.generate_explanation_exp(
+                explanation: str = explainer.generate_explanation_exp(
                     args, messages, team_conversation
                 )
                 if args.explanation_stream:
@@ -176,13 +185,18 @@ def OptiChat_workflow_exp(
                         explanation_response: Any = st.write_stream(explanation)
                 else:
                     explanation_response = explanation
+
                 explainer_end: float = time.time()
                 explainer.explanation_time += explainer_end - explainer_start
 
                 team_conversation.append(
                     {"agent_name": "Explainer", "agent_response": explanation_response}
                 )
-                messages.append({"role": "assistant", "content": explanation_response})
+                messages.append(
+                    ChatCompletionAssistantMessageParam(
+                        {"role": "assistant", "content": explanation_response}
+                    )
+                )
                 return messages, team_conversation
 
             else:
