@@ -1089,7 +1089,9 @@ class Coordinator(Agent):
         -------
         Tuple[str, str | DecisionDict]
             Status of coordination ("In Progress", "Completed", "Terminated") and
-            either the final output string or the decision dictionary.        Notes
+            either the final output string or the decision dictionary.
+
+        Notes
         -----
         Core coordination logic that analyzes conversation history and assigns
         tasks to appropriate agents. Includes retry logic and completion detection.
