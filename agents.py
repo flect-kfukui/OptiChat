@@ -18,7 +18,12 @@ from openai.types.chat import (
 )
 from openai.types.shared_params import ResponseFormatJSONObject, ResponseFormatText
 
-from extractor import extract_component_descriptions, run_with_exec
+from extractor import (
+    ModelDictWithPyomo,
+    ModelsContainer,
+    extract_component_descriptions,
+    run_with_exec,
+)
 from internal_tools import (
     components_retrival,
     evaluate_modification,
@@ -521,14 +526,14 @@ class Interpreter(Agent):
             del self.interpretation_json_template["components"][component_type]
 
     def generate_interpretation(
-        self, models_dict: Dict, code: str, model_name="model_1"
-    ):
+        self, models_dict: ModelsContainer, code: str, model_name="model_1"
+    ) -> ModelsContainer:
         """
         Generate model interpretation by analyzing components and adding descriptions.
 
         Parameters
         ----------
-        models_dict : dict
+        models_dict : ModelsContainer
             Dictionary containing model representations and components.
         code : str
             Source code of the optimization model.
@@ -537,7 +542,7 @@ class Interpreter(Agent):
 
         Returns
         -------
-        dict
+        ModelsContainer
             Updated models_dict with component descriptions filled in.
 
         Raises
@@ -570,6 +575,7 @@ class Interpreter(Agent):
                 ].items():
                     if value.get("description") in ["None", None]:
                         need2describe[component_type].append(key)
+
                 # if there are components that haven't been described, add them to the prompt
                 if len(need2describe[component_type]) > 0:
                     cat_need2describe_prompt = self._cat(
@@ -579,6 +585,7 @@ class Interpreter(Agent):
                     )
                 else:
                     self._cut(component_type)
+
                 # print('===' * 10)
                 # print('cat_need2describe_prompt:', cat_need2describe_prompt)
                 # print(f'interpretation_json_template: {self.interpretation_json_template}')
@@ -658,14 +665,14 @@ class Interpreter(Agent):
         return models_dict
 
     def generate_illustration(
-        self, model_representation: Dict
+        self, model_representation: ModelDictWithPyomo
     ) -> Stream[ChatCompletionChunk]:
         """
         Generate a natural language illustration of the optimization model.
 
         Parameters
         ----------
-        model_representation : dict
+        model_representation : ModelDictWithPyomo
             Complete model representation with component descriptions.
 
         Returns
@@ -690,14 +697,14 @@ class Interpreter(Agent):
         return stream
 
     def generate_inference(
-        self, model_representation: Dict
+        self, model_representation: ModelDictWithPyomo
     ) -> Stream[ChatCompletionChunk]:
         """
         Generate inference about model infeasibility using IIS information.
 
         Parameters
         ----------
-        model_representation : dict
+        model_representation : ModelDictWithPyomo
             Complete model representation containing IIS information.
 
         Returns
@@ -748,8 +755,8 @@ class Interpreter(Agent):
         return stream
 
     def generate_interpretation_exp(
-        self, args, models_dict: Dict, code: str, model_name="model_1"
-    ):
+        self, args, models_dict: ModelsContainer, code: str, model_name="model_1"
+    ) -> Tuple[ModelsContainer, int, bool]:
         """
         Generate model interpretation with experimental settings and retry logic.
 
@@ -757,7 +764,7 @@ class Interpreter(Agent):
         ----------
         args : object
             Configuration arguments including temperature and streaming settings.
-        models_dict : dict
+        models_dict : ModelsContainer
             Dictionary containing multiple model representations.
         code : str
             Source code of the optimization model.
@@ -766,7 +773,7 @@ class Interpreter(Agent):
 
         Returns
         -------
-        tuple of (dict, int, bool) or None
+        Tuple[ModelsContainer, int, bool]
             Updated models_dict, retry count remaining, and success flag.
             Returns None if all retries failed.
 
@@ -882,7 +889,7 @@ class Interpreter(Agent):
         return models_dict, cnt, task_complete
 
     def generate_illustration_exp(
-        self, args, model_representation: Dict
+        self, args, model_representation: ModelDictWithPyomo
     ) -> Stream[ChatCompletionChunk] | str:
         """
         Generate model illustration with experimental settings.
@@ -891,7 +898,7 @@ class Interpreter(Agent):
         ----------
         args : object
             Configuration arguments with temperature and streaming settings.
-        model_representation : dict
+        model_representation : ModelDictWithPyomo
             Complete model representation with component descriptions.
 
         Returns
@@ -921,7 +928,7 @@ class Interpreter(Agent):
         return stream_or_completion
 
     def generate_inference_exp(
-        self, args, model_representation: Dict
+        self, args, model_representation: ModelDictWithPyomo
     ) -> Stream[ChatCompletionChunk] | str:
         """
         Generate inference about model infeasibility with experimental settings.
@@ -930,7 +937,7 @@ class Interpreter(Agent):
         ----------
         args : object
             Configuration arguments with temperature and streaming settings.
-        model_representation : dict
+        model_representation : ModelDictWithPyomo
             Complete model representation containing IIS information.
 
         Returns
@@ -1674,7 +1681,7 @@ class Engineer(Agent):
         args: Any,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[Dict[str, str]],
-        models_dict: Dict[str, Any],
+        models_dict: ModelsContainer,
     ) -> Tuple[str, str]:
         """
         Generate syntax guidance for model analysis with experimental settings.
@@ -1687,7 +1694,7 @@ class Engineer(Agent):
             Conversation message history.
         team_conversation : list of dict
             Team conversation history for context.
-        models_dict : dict
+        models_dict : ModelsContainer
             Dictionary containing model representations.
 
         Returns
@@ -1703,7 +1710,7 @@ class Engineer(Agent):
         while not self.syntax_success and self.syntax_cnt > 0:
             component_descriptions = extract_component_descriptions(models_dict)
 
-            if models_dict["model_representation"]["model type"] != "LP":
+            if models_dict["model_representation"]["model_type"] != "LP":
                 function_names = [
                     fn for fn in self.function_names if fn != "sensitivity_analysis"
                 ]
@@ -1758,7 +1765,7 @@ class Engineer(Agent):
         args: Any,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[Dict[str, str]],
-        models_dict: Dict[str, Any],
+        models_dict: ModelsContainer,
         syntax_mode: str,
     ) -> str:
         """
@@ -1772,7 +1779,7 @@ class Engineer(Agent):
             Conversation message history.
         team_conversation : list of dict
             Team conversation history for context.
-        models_dict : dict
+        models_dict : ModelsContainer
             Dictionary containing model representations.
         syntax_mode : str
             Mode for syntax analysis ("single", "multiple", "none").
@@ -2007,7 +2014,7 @@ class Engineer(Agent):
         args: Any,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[Dict[str, str]],
-        models_dict: Dict[str, Any],
+        models_dict: ModelsContainer,
     ) -> Tuple[str, str, str]:
         """
         Generate and evaluate code solutions through iterative development.
@@ -2020,7 +2027,7 @@ class Engineer(Agent):
             Conversation message history.
         team_conversation : list of dict
             Team conversation history for context.
-        models_dict : dict
+        models_dict : ModelsContainer
             Dictionary containing model representations.
 
         Returns
@@ -2098,7 +2105,7 @@ class Engineer(Agent):
         args: Any,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[Dict[str, str]],
-        models_dict: Dict[str, Any],
+        models_dict: ModelsContainer,
     ) -> Tuple[List[ChatCompletionMessageParam], List[Dict[str, str]]]:
         """
         Generate comprehensive technical report with experimental settings.
@@ -2111,7 +2118,7 @@ class Engineer(Agent):
             Conversation message history.
         team_conversation : list of dict
             Team conversation history for context.
-        models_dict : dict
+        models_dict : ModelsContainer
             Dictionary containing model representations.
 
         Returns

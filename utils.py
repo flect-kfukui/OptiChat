@@ -8,13 +8,15 @@ from dotenv import find_dotenv, load_dotenv
 from loguru import logger
 
 # GPT
-from openai import OpenAI
+from openai import OpenAI, Stream
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
+    ChatCompletionChunk,
     ChatCompletionMessageParam,
 )
 
 from agents import Coordinator, Engineer, Explainer, Interpreter
+from extractor import ModelsContainer
 from prompts import get_syntax_guidance_tool, get_tools
 
 _ = load_dotenv(find_dotenv())  # read local .env file
@@ -100,7 +102,7 @@ def OptiChat_workflow_exp(
     engineer: Engineer,
     explainer: Explainer,
     messages: List[ChatCompletionMessageParam],
-    models_dict: Dict[str, Any],
+    models_dict: ModelsContainer,
 ) -> Tuple[List[ChatCompletionMessageParam], List[Dict[str, Any]]]:
     """
     Execute the main OptiChat workflow with multi-agent coordination.
@@ -117,7 +119,7 @@ def OptiChat_workflow_exp(
         Explainer agent instance for providing detailed explanations.
     messages : list of dict
         Chat message history with role and content keys.
-    models_dict : dict
+    models_dict : ModelsContainer
         Dictionary containing optimization model representations and metadata.
 
     Returns
@@ -177,10 +179,12 @@ def OptiChat_workflow_exp(
 
             elif decision["agent_name"] == "Explainer":
                 explainer_start: float = time.time()
-                explanation: str = explainer.generate_explanation_exp(
-                    args, messages, team_conversation
+                explanation: Stream[ChatCompletionChunk] | str = (
+                    explainer.generate_explanation_exp(
+                        args, messages, team_conversation
+                    )
                 )
-                if args.explanation_stream:
+                if args.explanation_stream and isinstance(explanation, Stream):
                     with st.chat_message("assistant"):
                         explanation_response: Any = st.write_stream(explanation)
                 else:

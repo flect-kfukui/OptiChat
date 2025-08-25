@@ -17,6 +17,300 @@ from pyomo.core.base.var import IndexedVar, VarData
 from pyomo.core.expr.visitor import identify_mutable_parameters, identify_variables
 from pyomo.opt import SolverFactory, TerminationCondition
 from streamlit.runtime.uploaded_file_manager import UploadedFile
+from typing_extensions import NotRequired, TypedDict
+
+# TypedDict definitions for model dictionary structures
+#
+# These type definitions provide structure and documentation for the complex
+# nested dictionaries used throughout this module to represent optimization models.
+#
+# Key Structure Overview:
+# - ModelsContainer: Top-level container with "model_representation" and "model_1" keys
+# - ModelDictWithPyomo: Individual model dict containing Pyomo objects
+#   (not serializable)
+# - ModelDictSerializable: Model dict without Pyomo objects (JSON serializable)
+# - ComponentsContainer: Nested structure containing sets, parameters, variables, etc.
+#
+# Note: Some dictionary keys use spaces (e.g., "model status") which limits full
+# TypedDict compatibility. These types serve primarily as documentation and partial
+# type checking. For complete type safety, consider refactoring to use underscore keys.
+
+
+class SetComponent(TypedDict):
+    """Dictionary structure for optimization model sets."""
+
+    name: str
+    is_indexed: bool
+    description: str
+
+
+class ParameterComponent(TypedDict):
+    """Dictionary structure for optimization model parameters."""
+
+    name: str
+    is_indexed: bool
+    index_set: Any  # Pyomo index set object or None
+    is_RHS: bool
+    is_mutable: bool
+    cons_in: Set[str]
+    description: str
+
+
+class ParameterComponentSerializable(TypedDict):
+    """Serializable dictionary structure for model parameters (no Pyomo objects)."""
+
+    name: str
+    is_indexed: bool
+    is_RHS: bool
+    is_mutable: bool
+    cons_in: Set[str]
+    description: str
+
+
+class VariableComponent(TypedDict):
+    """Dictionary structure for optimization model variables."""
+
+    name: str
+    is_indexed: bool
+    index_set: Any  # Pyomo index set object or None
+    cons_in: Set[str]
+    description: str
+
+
+class VariableComponentSerializable(TypedDict):
+    """Serializable dictionary structure for model variables (no Pyomo objects)."""
+
+    name: str
+    is_indexed: bool
+    cons_in: Set[str]
+    description: str
+
+
+class ConstraintComponent(TypedDict):
+    """Dictionary structure for optimization model constraints."""
+
+    name: str
+    is_indexed: bool
+    index_set: Any  # Pyomo index set object or None
+    params_in: Set[str]
+    vars_in: Set[str]
+    description: str
+
+
+class ConstraintComponentSerializable(TypedDict):
+    """Serializable dictionary structure for model constraints (no Pyomo objects)."""
+
+    name: str
+    is_indexed: bool
+    params_in: Set[str]
+    vars_in: Set[str]
+    description: str
+
+
+class ObjectiveComponent(TypedDict):
+    """Dictionary structure for optimization model objectives."""
+
+    name: str
+    sense: str
+    optimal_value: Any  # Can be numeric value or string for infeasible cases
+    is_indexed: bool
+    description: str
+
+
+class ComponentsContainer(TypedDict):
+    """Dictionary structure for all model components."""
+
+    sets: Dict[str, SetComponent]
+    parameters: Dict[str, ParameterComponent]
+    variables: Dict[str, VariableComponent]
+    constraints: Dict[str, ConstraintComponent]
+    objective: Dict[str, ObjectiveComponent]
+
+
+class ComponentsContainerSerializable(TypedDict):
+    """Dictionary structure for model components (serializable, no Pyomo objects)."""
+
+    sets: Dict[str, SetComponent]  # Sets don't have index_set field
+    parameters: Dict[str, ParameterComponentSerializable]
+    variables: Dict[str, VariableComponentSerializable]
+    constraints: Dict[str, ConstraintComponentSerializable]
+    objective: Dict[str, ObjectiveComponent]  # Objectives don't have index_set
+
+
+class IISConstraint(TypedDict):
+    """Dictionary structure for IIS constraint information."""
+
+    params_in: Set[str]
+    vars_in: Set[str]
+
+
+# Type definitions for model dictionaries with underscore keys
+#
+# Keys have been updated to use underscores instead of spaces for proper
+# TypedDict support
+#
+# - ModelDictWithPyomo: Contains Pyomo objects, used during model processing
+# - ModelDictSerializable: JSON serializable version without Pyomo objects
+
+
+class ModelDictWithPyomo(TypedDict):
+    """
+    Dictionary structure for a complete optimization model with Pyomo objects.
+
+    Uses underscore keys for proper TypedDict support:
+    - model_class: Pyomo ConcreteModel object
+    - model_status: Solver termination condition
+    - model_type: Problem type ("LP", "IP", etc.)
+    - model_description: Model description string
+    - components: Nested dict with sets, parameters, variables, constraints, objective
+    - code: Source code string
+    - iis: Optional IIS constraint information
+    - iis_description: Optional IIS description string
+    """
+
+    # Required fields from pyomo2json
+    model_class: pe.ConcreteModel
+    model_status: str
+    model_type: str
+    model_description: Any
+    components: ComponentsContainer
+
+    # Added in initial_loading
+    code: str
+
+    # Optional fields added conditionally
+    iis: NotRequired[Dict[str, IISConstraint]]
+    iis_description: NotRequired[str]
+
+
+class ModelDictSerializable(TypedDict):
+    """
+    Dictionary structure for a serializable optimization model (no Pyomo objects).
+
+    Same as ModelDictWithPyomo but excludes model_class and uses serializable
+    components that don't contain index_set fields with Pyomo objects.
+
+    Uses underscore keys for proper TypedDict support:
+    - model_status: Solver termination condition
+    - model_type: Problem type ("LP", "IP", etc.)
+    - model_description: Model description string
+    - components: Serializable nested dict with model components
+    - code: Source code string
+    - iis: Optional IIS constraint information
+    - iis_description: Optional IIS description string
+    """
+
+    # Required fields (no model_class since it's not serializable)
+    model_status: str
+    model_type: str
+    model_description: Any
+    components: ComponentsContainerSerializable
+
+    # Added in initial_loading
+    code: str
+
+    # Optional fields added conditionally
+    iis: NotRequired[Dict[str, IISConstraint]]
+    iis_description: NotRequired[str]
+
+
+# For the main models container
+ModelsContainer = Dict[str, ModelDictWithPyomo]
+
+
+def validate_model_dict_structure(model_dict: Dict[str, Any]) -> bool:
+    """
+    Validate that a dictionary matches the expected ModelDictWithPyomo structure.
+
+    This function checks for the presence of required keys that are created
+    by pyomo2json and modified by subsequent processing functions.
+
+    Parameters
+    ----------
+    model_dict : dict
+        Dictionary to validate against ModelDictWithPyomo structure
+
+    Returns
+    -------
+    bool
+        True if structure matches expected format, False otherwise
+    """
+    required_keys = {
+        "model_class",
+        "model_status",
+        "model_type",
+        "model_description",
+        "components",
+    }
+
+    # Check required keys
+    if not all(key in model_dict for key in required_keys):
+        return False
+
+    # Check components structure
+    if "components" in model_dict:
+        components = model_dict["components"]
+        if not isinstance(components, dict):
+            return False
+
+        expected_component_types = {
+            "sets",
+            "parameters",
+            "variables",
+            "constraints",
+            "objective",
+        }
+        if not all(comp_type in components for comp_type in expected_component_types):
+            return False
+
+    return True
+
+
+def validate_serializable_model_dict_structure(model_dict: Dict[str, Any]) -> bool:
+    """
+    Validate that a dictionary matches the expected ModelDictSerializable structure.
+
+    This function checks for serializable model dictionaries that don't contain
+    Pyomo objects (no model_class field, no index_set in components).
+
+    Parameters
+    ----------
+    model_dict : dict
+        Dictionary to validate against ModelDictSerializable structure
+
+    Returns
+    -------
+    bool
+        True if structure matches expected format, False otherwise
+    """
+    required_keys = {
+        "model_status",
+        "model_type",
+        "model_description",
+        "components",
+    }
+
+    # Check required keys (note: no model_class for serializable version)
+    if not all(key in model_dict for key in required_keys):
+        return False
+
+    # Check components structure
+    if "components" in model_dict:
+        components = model_dict["components"]
+        if not isinstance(components, dict):
+            return False
+
+        expected_component_types = {
+            "sets",
+            "parameters",
+            "variables",
+            "constraints",
+            "objective",
+        }
+        if not all(comp_type in components for comp_type in expected_component_types):
+            return False
+
+    return True
 
 
 def find_lhs_params(
@@ -178,7 +472,7 @@ def find_lhs_params(
 
 def pyomo2json(
     model: pe.ConcreteModel, termination_condition: str = "Unknown"
-) -> Dict[str, Any]:
+) -> ModelDictWithPyomo:
     """
     Convert a Pyomo optimization model to JSON representation.
 
@@ -210,10 +504,10 @@ def pyomo2json(
     """
     model_dict = {}
     # model_dict["model name"] = model.name
-    model_dict["model class"] = model
-    model_dict["model status"] = termination_condition
-    model_dict["model type"] = "LP"
-    model_dict["model description"] = None
+    model_dict["model_class"] = model
+    model_dict["model_status"] = termination_condition
+    model_dict["model_type"] = "LP"
+    model_dict["model_description"] = None
 
     model_dict["components"] = {}
 
@@ -274,11 +568,11 @@ def pyomo2json(
         model_dict["components"]["variables"][var_name] = var_dict
 
         # check if the model is an IP
-        if model_dict["model type"] != "IP":
+        if model_dict["model_type"] != "IP":
             for var_idx in var:
                 var_i: VarData = var[var_idx]
                 if var_i.is_binary():
-                    model_dict["model type"] = "IP"
+                    model_dict["model_type"] = "IP"
 
         # add description to default sets
         set_name = var_name + "_index"
@@ -370,10 +664,10 @@ def pyomo2json(
         obj_dict["description"] = obj.doc
         model_dict["components"]["objective"][obj_name] = obj_dict
 
-    return model_dict
+    return model_dict  # type: ignore[return-value]
 
 
-def iis2json(ilp_path: str, model_dict: Dict[str, Any]) -> Dict[str, Any]:
+def iis2json(ilp_path: str, model_dict: ModelDictWithPyomo) -> ModelDictWithPyomo:
     """
     Extract Irreducible Infeasible Subsystem (IIS) information from ILP file.
 
@@ -397,7 +691,7 @@ def iis2json(ilp_path: str, model_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     constr_names = set()
     iis_dict = {}
-    if model_dict["model status"] in [
+    if model_dict["model_status"] in [
         TerminationCondition.infeasible,
         TerminationCondition.infeasibleOrUnbounded,
     ]:
@@ -429,7 +723,7 @@ def iis2json(ilp_path: str, model_dict: Dict[str, Any]) -> Dict[str, Any]:
 
 def initial_loading(
     file: UploadedFile | str, is_uploaded: bool = True
-) -> Tuple[Dict[str, Any], str]:
+) -> Tuple[ModelsContainer, str]:
     """
     Load and initialize a Pyomo optimization model from file.
 
@@ -514,7 +808,7 @@ def initial_loading(
     return models_dict, code
 
 
-def iis_translation(model_dict: Dict[str, Any]) -> str:
+def iis_translation(model_dict: ModelDictWithPyomo) -> str:
     """
     Generate human-readable translation of IIS (Irreducible Infeasible Subsystem).
 
@@ -535,7 +829,7 @@ def iis_translation(model_dict: Dict[str, Any]) -> str:
     infeasibility and what parameters/variables are involved, making the
     IIS information accessible to non-technical users.
     """
-    iis_dict = model_dict["iis"]
+    iis_dict = model_dict.get("iis", {})  # Safe access for optional key
     translation = ""
     for con_name in iis_dict:
         param_names = iis_dict[con_name]["params_in"]
@@ -560,7 +854,7 @@ def iis_translation(model_dict: Dict[str, Any]) -> str:
 
 
 def update_model_representation(
-    models_dict: Dict[str, Any], model_name: str = "model_1"
+    models_dict: ModelsContainer, model_name: str = "model_1"
 ) -> None:
     """
     Update model representation dictionary by copying from specified model.
@@ -583,14 +877,14 @@ def update_model_representation(
     except index_set objects, which are not serializable. Used to prepare
     model data for JSON serialization and agent processing.
     """
-    models_dict["model_representation"] = {}
+    models_dict["model_representation"] = {}  # type: ignore[assignment]
     model_representation = models_dict["model_representation"]
     ref_model_dict = models_dict[model_name]
     # exclude model class
     model_representation["code"] = ref_model_dict["code"]
-    model_representation["model status"] = ref_model_dict["model status"]
-    model_representation["model type"] = ref_model_dict["model type"]
-    model_representation["model description"] = ref_model_dict["model description"]
+    model_representation["model_status"] = ref_model_dict["model_status"]
+    model_representation["model_type"] = ref_model_dict["model_type"]
+    model_representation["model_description"] = ref_model_dict["model_description"]
     model_representation["components"] = {}
     component_types = ["sets", "parameters", "variables", "constraints", "objective"]
     # copy everything except index_set
@@ -613,16 +907,9 @@ def update_model_representation(
         model_representation["iis_description"] = ref_model_dict["iis_description"]
 
 
-# def old_update_model_representation(models_dict, model_name='model_1'):
-#     ref_model_dict = models_dict[model_name]
-#     models_dict['model_representation'] = copy.deepcopy(ref_model_dict)
-#     for component_type, components in ref_model_dict["components"].items():
-#         for component_name, component_info in components.items():
-#             if "index_set" in component_info:
-#                 del models_dict['model_representation']["components"][component_type][component_name]["index_set"]
-
-
-def extract_component_descriptions(models_dict: Dict[str, Any]) -> Dict[str, Any]:
+def extract_component_descriptions(
+    models_dict: ModelsContainer,
+) -> ComponentsContainerSerializable:
     """
     Extract component descriptions from model representation dictionary.
 
@@ -644,12 +931,12 @@ def extract_component_descriptions(models_dict: Dict[str, Any]) -> Dict[str, Any
     """
     ref_model_dict = models_dict["model_representation"]["components"]
     component_descriptions = copy.deepcopy(ref_model_dict)
-    return component_descriptions
+    return component_descriptions  # type: ignore[return-value]
 
 
 def replace(src_code: str, old_code: str, new_code: str) -> str:
     """
-    TAKEN FROM AUTOGEN: https://microsoft.github.io/autogen/docs/notebooks/agentchat_nestedchat_optiguide/
+    TAKEN FROM AUTOGEN: https://microsoft.github.io/autogen/docs/notebooks/agentchat_nestedchat_optiguide/  # noqa: E501
     Inserts new code into the source code by replacing a specified old
     code block.
 
@@ -690,7 +977,7 @@ def insert_code(src_code: str, new_lines: str, code_type: str) -> str:
     """
     Insert code patch into source code at designated location.
 
-    Adapted from AUTOGEN: https://microsoft.github.io/autogen/docs/notebooks/agentchat_nestedchat_optiguide/
+    Adapted from AUTOGEN: https://microsoft.github.io/autogen/docs/notebooks/agentchat_nestedchat_optiguide/  # noqa: E501
 
     Parameters
     ----------
@@ -711,7 +998,7 @@ def insert_code(src_code: str, new_lines: str, code_type: str) -> str:
     Currently replaces "# YOUR CODE GOES HERE" placeholder with the new code.
     The code_type parameter is available for future extensibility.
     """
-    # # # for now, we have # OPTICHAT REVISION CODE GOES HERE and # OPTICHAT PRINT CODE GOES HERE
+    # # # for now, we have # OPTICHAT REVISION CODE GOES HERE and # OPTICHAT PRINT CODE GOES HERE  # noqa: E501
     # # return replace(src_code, '# CODE GOES HERE', new_lines)
     # if code_type == 'REVISION':
     #     return replace(src_code, f"# OPTICHAT {code_type} CODE GOES HERE", new_lines)
@@ -873,7 +1160,7 @@ def get_files(folder_name: str) -> Tuple[List[str], List[str]]:
     return infeasible_files, feasible_files
 
 
-def get_skipJSON(model_representation: Dict[str, Any]) -> Dict[str, Any]:
+def get_skipJSON(model_representation: ModelDictSerializable) -> Dict[str, Any]:
     """
     Extract model and component descriptions for quick loading.
 
@@ -896,7 +1183,7 @@ def get_skipJSON(model_representation: Dict[str, Any]) -> Dict[str, Any]:
     """
     COMPONENT_TYPES = ["sets", "parameters", "variables", "constraints", "objective"]
     skipJSON = {
-        "model description": model_representation["model description"],
+        "model_description": model_representation["model_description"],
         "components": {
             component_type: {
                 component_name: component_dict["description"]
@@ -912,9 +1199,9 @@ def get_skipJSON(model_representation: Dict[str, Any]) -> Dict[str, Any]:
 
 def feed_skipJSON(
     skipJSON: Dict[str, Any],
-    models_dict: Dict[str, Any],
+    models_dict: ModelsContainer,
     queried_model: str = "model_1",
-) -> Dict[str, Any]:
+) -> ModelsContainer:
     """
     Load pre-computed descriptions into model dictionary.
 
@@ -922,7 +1209,7 @@ def feed_skipJSON(
     ----------
     skipJSON : dict
         Dictionary containing model and component descriptions from get_skipJSON().
-    models_dict : dict
+    models_dict : ModelsContainer
         Dictionary containing model representations to be updated.
     queried_model : str, default="model_1"
         Key identifying which model in models_dict to update.
@@ -940,7 +1227,7 @@ def feed_skipJSON(
     """
     COMPONENT_TYPES = ["sets", "parameters", "variables", "constraints", "objective"]
     model_dict = models_dict[queried_model]
-    model_dict["model description"] = skipJSON["model description"]
+    model_dict["model_description"] = skipJSON["model_description"]
     for component_type in COMPONENT_TYPES:
         for component_name, component_dict in model_dict["components"][
             component_type

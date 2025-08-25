@@ -13,7 +13,7 @@ from pyomo.core.expr.visitor import (
 )
 from pyomo.opt import SolverFactory, TerminationCondition
 
-from extractor import pyomo2json
+from extractor import ModelDictWithPyomo, ModelsContainer, pyomo2json
 
 
 def fnArgsDecoder(queried_components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -128,7 +128,7 @@ def old_fnArgsDecoder(queried_components: List[Dict[str, Any]]) -> List[Dict[str
     return queried_components
 
 
-def get_component_type(name: str, m: Dict[str, Any]) -> Optional[str]:
+def get_component_type(name: str, m: ModelDictWithPyomo) -> Optional[str]:
     """
     Determine the component type of a given component name in a model dictionary.
 
@@ -136,7 +136,7 @@ def get_component_type(name: str, m: Dict[str, Any]) -> Optional[str]:
     ----------
     name : str
         The name of the component to look up.
-    m : dict
+    m : ModelDictWithPyomo
         Model dictionary containing component information organized by type.
 
     Returns
@@ -178,7 +178,7 @@ def syntax_guidance(
     queried_function: str,
     queried_components: List[str],
     queried_model: str,
-    models_dict: Dict[str, Any],
+    models_dict: ModelsContainer,
 ) -> Tuple[str, str]:
     """
     Generate syntax guidance for function calls based on model components.
@@ -193,7 +193,7 @@ def syntax_guidance(
         List of component names to analyze for syntax guidance.
     queried_model : str
         Name of the model to query.
-    models_dict : dict
+    models_dict : ModelsContainer
         Dictionary containing model information and component details.
 
     Returns
@@ -441,7 +441,7 @@ Make sure the delta value is consistent with the positivity/negativity of the pa
 def feasibility_restoration(
     queried_components: List[Dict[str, Any]],
     queried_model: str,
-    models_dict: Dict[str, Any],
+    models_dict: ModelsContainer,
 ) -> str:
     """
     Restore feasibility of an infeasible optimization model by adjusting parameters.
@@ -453,7 +453,7 @@ def feasibility_restoration(
         Each dict should have 'component_name' and 'component_indexes' keys.
     queried_model : str
         Name of the infeasible model to restore.
-    models_dict : dict
+    models_dict : ModelsContainer
         Dictionary containing all model information and instances.
 
     Returns
@@ -474,14 +474,14 @@ def feasibility_restoration(
     """
     queried_model_dict = models_dict[queried_model]
 
-    if queried_model_dict["model status"] not in [
+    if queried_model_dict["model_status"] not in [
         TerminationCondition.infeasible,
         TerminationCondition.infeasibleOrUnbounded,
     ]:
         return "The model is not infeasible. No need to restore feasibility. Please confirm with the user."
 
     # define slack parameters
-    model: pe.ConcreteModel = queried_model_dict["model class"].clone()
+    model: pe.ConcreteModel = queried_model_dict["model_class"].clone()
     for component in queried_components:
         param_name: str = component["component_name"]
         param_indexes = component["component_indexes"]
@@ -611,8 +611,8 @@ Users need to provide a valid parameter for feasibility restoration."""
             + ", which cannot be solved due to time limit."
             + description[7:]
         )
-        new_model_dict["model description"] = description
-        new_model_dict["model status"] = TerminationCondition.maxTimeLimit
+        new_model_dict["model_description"] = description
+        new_model_dict["model_status"] = TerminationCondition.maxTimeLimit
         models_dict[new_model_name] = new_model_dict
     elif termination_condition == TerminationCondition.optimal:
         for p, idx in iis_param:
@@ -635,8 +635,8 @@ Users need to provide a valid parameter for feasibility restoration."""
             + "\n\nHelp the user analyze why the feasibility can be restored by these changes. Let user know this new model will be referred to as {new_model_name}."
         )
         description = description[:7] + ", which becomes feasible" + description[7:]
-        new_model_dict["model description"] = description
-        new_model_dict["model status"] = TerminationCondition.optimal
+        new_model_dict["model_description"] = description
+        new_model_dict["model_status"] = TerminationCondition.optimal
         models_dict[new_model_name] = new_model_dict
     else:
         feedback = "The model remains infeasible after only changing the following: \n"
@@ -644,7 +644,7 @@ Users need to provide a valid parameter for feasibility restoration."""
             idx = "" if idx is None else f" at {idx}"
             feedback = feedback + f"{p}{idx}; \n"
         description = feedback
-        models_dict[queried_model]["model description"] = description
+        models_dict[queried_model]["model_description"] = description
         feedback = (
             feedback
             + "\n\nThis is determined by the nature of the model, rather than an error of internal tools. Help the user analyze why the feasibility is not restored."
@@ -657,7 +657,7 @@ Users need to provide a valid parameter for feasibility restoration."""
 def sensitivity_analysis(
     queried_components: List[Dict[str, Any]],
     queried_model: str,
-    models_dict: Dict[str, Any],
+    models_dict: ModelsContainer,
 ) -> str:
     """
     Perform sensitivity analysis on linear programming model parameters.
@@ -669,7 +669,7 @@ def sensitivity_analysis(
         Each dict should have 'component_name' and 'component_indexes' keys.
     queried_model : str
         Name of the model to analyze.
-    models_dict : dict
+    models_dict : ModelsContainer
         Dictionary containing all model information and instances.
 
     Returns
@@ -689,16 +689,16 @@ def sensitivity_analysis(
     - Automatically solves model with dual suffixes if not already present
     """
     queried_model_dict = models_dict[queried_model]
-    model: pe.ConcreteModel = queried_model_dict["model class"].clone()
+    model: pe.ConcreteModel = queried_model_dict["model_class"].clone()
 
-    if queried_model_dict["model status"] in [
+    if queried_model_dict["model_status"] in [
         TerminationCondition.infeasible,
         TerminationCondition.infeasibleOrUnbounded,
     ]:
         feedback = "Error: The model is infeasible. Sensitivity analysis cannot be performed on an infeasible model."
         feedback = "Feedback from internal tools: \n" + feedback
         return feedback
-    if queried_model_dict["model type"] != "LP":
+    if queried_model_dict["model_type"] != "LP":
         feedback = "Error: The model is not a linear programming model. Internal tools do not support sensitivity analysis on other types of models."
         feedback = "Feedback from internal tools: \n" + feedback
         return feedback
@@ -883,7 +883,7 @@ or if they are particularly interested in these parameters, they must specify a 
         results = opt.solve(model, tee=True)
         termination_condition = results.solver.termination_condition
         # update the models_dict
-        models_dict[queried_model]["model class"] = model
+        models_dict[queried_model]["model_class"] = model
 
     for param_const_pair in param_const_pairs:
         for const in param_const_pair["consts"]:
@@ -934,7 +934,7 @@ or if they are particularly interested in these parameters, they must specify a 
 def components_retrival(
     queried_components: List[Dict[str, Any]],
     queried_model: str,
-    models_dict: Dict[str, Any],
+    models_dict: ModelsContainer,
 ) -> str:
     """
     Retrieve current values or expressions of model components.
@@ -946,7 +946,7 @@ def components_retrival(
         retrieve. Each dict should have 'component_name' and 'component_indexes' keys.
     queried_model : str
         Name of the model to query.
-    models_dict : dict
+    models_dict : ModelsContainer
         Dictionary containing all model information and instances.
 
     Returns
@@ -1094,7 +1094,7 @@ def components_retrival(
 def evaluate_modification(
     queried_components: List[Dict[str, Any]],
     queried_model: str,
-    models_dict: Dict[str, Any],
+    models_dict: ModelsContainer,
 ) -> str:
     """
     Evaluate the impact of specific parameter modifications on model behavior.
@@ -1107,7 +1107,7 @@ def evaluate_modification(
         'operation', and 'delta'.
     queried_model : str
         Name of the model to modify and evaluate.
-    models_dict : dict
+    models_dict : ModelsContainer
         Dictionary containing all model information and instances.
 
     Returns
@@ -1129,7 +1129,7 @@ def evaluate_modification(
     - Handles feasible, infeasible, and time-limited results
     """
     queried_model_dict = models_dict[queried_model]
-    model: pe.ConcreteModel = queried_model_dict["model class"].clone()
+    model: pe.ConcreteModel = queried_model_dict["model_class"].clone()
     original_obj_value = None
     for obj_name, obj in model.component_map(pe.Objective).items():
         original_obj_value = queried_model_dict["components"]["objective"][obj_name][
@@ -1398,7 +1398,7 @@ def evaluate_modification(
                 + ", which is not solved due to time limit"
                 + description[7:]
             )
-            new_model_dict["model description"] = description
+            new_model_dict["model_description"] = description
             models_dict[new_model_name] = new_model_dict
         elif termination_condition == TerminationCondition.optimal:
             feedback += f"\n\nThe model now is feasible, and the new model will be referred to as {new_model_name}."
@@ -1408,7 +1408,7 @@ def evaluate_modification(
                 + "\n\nHelp the user analyze the influence of these modifications. "
             )
             description = description[:7] + ", which is feasible" + description[7:]
-            new_model_dict["model description"] = description
+            new_model_dict["model_description"] = description
             models_dict[new_model_name] = new_model_dict
         else:
             feedback += f"\n\nThe model now is infeasible, and the new model will be referred to as {new_model_name}."
@@ -1417,17 +1417,17 @@ def evaluate_modification(
                 + "\n\nHelp the user analyze the influence of these modifications."
             )
             description = description[:7] + ", which is infeasible" + description[7:]
-            new_model_dict["model description"] = description
+            new_model_dict["model_description"] = description
             models_dict[new_model_name] = new_model_dict
 
         reminder = f"Reminder: the status of old model, {queried_model}, was "
-        if queried_model_dict["model status"] == TerminationCondition.maxTimeLimit:
+        if queried_model_dict["model_status"] == TerminationCondition.maxTimeLimit:
             reminder += f"is not solved due to time limit with best objective value found as {original_obj_value}."
-        elif queried_model_dict["model status"] == TerminationCondition.optimal:
+        elif queried_model_dict["model_status"] == TerminationCondition.optimal:
             reminder += (
                 f"solved with optimal objective value found as {original_obj_value}."
             )
-        elif queried_model_dict["model status"] in [
+        elif queried_model_dict["model_status"] in [
             TerminationCondition.infeasible,
             TerminationCondition.infeasibleOrUnbounded,
         ]:

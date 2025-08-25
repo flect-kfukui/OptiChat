@@ -9,6 +9,7 @@ from openai import OpenAI
 from pyomo.opt import TerminationCondition
 
 from extractor import (
+    ModelsContainer,
     feed_skipJSON,
     get_skipJSON,
     initial_loading,
@@ -140,6 +141,8 @@ def process():
         st.error("Please upload your model first.")
         return
 
+    models_dict: ModelsContainer
+    code: str
     models_dict, code = initial_loading(uploaded_file)
 
     with st.chat_message("user"):
@@ -165,10 +168,10 @@ def process():
         illustration = st.write_stream(illustration_stream)
 
     # update model representation with model description
-    st.session_state.models_dict["model_1"]["model description"] = illustration
+    st.session_state.models_dict["model_1"]["model_description"] = illustration
     update_model_representation(st.session_state.models_dict)
     # if the model is infeasible, generate inference
-    if st.session_state.models_dict["model_1"]["model status"] in [
+    if st.session_state.models_dict["model_1"]["model_status"] in [
         TerminationCondition.infeasible,
         TerminationCondition.infeasibleOrUnbounded,
     ]:
@@ -178,7 +181,7 @@ def process():
         with st.chat_message("assistant"):
             inference = st.write_stream(inference_stream)
         # update model representation with inference description
-        st.session_state.models_dict["model_1"]["model description"] = (
+        st.session_state.models_dict["model_1"]["model_description"] = (
             illustration + "\n" + inference
         )
         update_model_representation(st.session_state.models_dict)
@@ -188,7 +191,7 @@ def process():
         {
             "role": "assistant",
             "content": st.session_state.models_dict["model_representation"][
-                "model description"
+                "model_description"
             ],
         }
     )
@@ -197,14 +200,14 @@ def process():
     st.session_state.chat_history.append("user: I have uploaded a Pyomo model.")
     st.session_state.chat_history.append(
         "assistant: "
-        + st.session_state.models_dict["model_representation"]["model description"]
+        + st.session_state.models_dict["model_representation"]["model_description"]
     )
     st.session_state.detailed_chat_history.append(
         "user: I have uploaded a Pyomo model."
     )
     st.session_state.detailed_chat_history.append(
         "assistant: "
-        + st.session_state.models_dict["model_representation"]["model description"]
+        + st.session_state.models_dict["model_representation"]["model_description"]
     )
 
     # save model_description and description of every component
@@ -265,7 +268,7 @@ def load_json():
     update_model_representation(st.session_state.models_dict)
 
     time.sleep(8)
-    stream = string_generator(skipJSON["model description"])
+    stream = string_generator(skipJSON["model_description"])
     with st.chat_message("assistant"):
         st.write_stream(stream)
 
@@ -274,7 +277,7 @@ def load_json():
         {
             "role": "assistant",
             "content": st.session_state.models_dict["model_representation"][
-                "model description"
+                "model_description"
             ],
         }
     )
@@ -283,14 +286,14 @@ def load_json():
     st.session_state.chat_history.append("user: I have uploaded a Pyomo model.")
     st.session_state.chat_history.append(
         "assistant: "
-        + st.session_state.models_dict["model_representation"]["model description"]
+        + st.session_state.models_dict["model_representation"]["model_description"]
     )
     st.session_state.detailed_chat_history.append(
         "user: I have uploaded a Pyomo model."
     )
     st.session_state.detailed_chat_history.append(
         "assistant: "
-        + st.session_state.models_dict["model_representation"]["model description"]
+        + st.session_state.models_dict["model_representation"]["model_description"]
     )
 
 
