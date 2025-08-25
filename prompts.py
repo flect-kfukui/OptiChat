@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Tuple, Union
+
 feasibility_restoration_fn_description = """
 Use when: The model is infeasible and you need to find out the minimal change to specific [component name] for restoring feasibility.
 Example: “How much should we adjust the [component name] to make the model feasible”
@@ -22,7 +24,7 @@ Example: "Will the optimal value be greatly affected if we have **two more** [co
 """
 
 
-def get_prompts(prompt):
+def get_prompts(prompt: str) -> Union[str, Dict[str, Any]]:
     """
     Retrieve and format various prompt templates for model analysis.
 
@@ -466,9 +468,11 @@ Human Expert Answer:
         return evaluator_prompt
     elif prompt == "test_prompt":
         return test_prompt
+    else:
+        raise ValueError(f"Unknown prompt type: {prompt}")
 
 
-def old_get_fn_json(fn_name):
+def old_get_fn_json(fn_name: str) -> Dict[str, Any]:
     """
     Generate legacy JSON schema for function definitions.
 
@@ -706,7 +710,7 @@ def old_get_fn_json(fn_name):
     return fn_json_template
 
 
-def get_fn_json(fn_name, mode):
+def get_fn_json(fn_name: str, mode: str) -> Dict[str, Any]:
     """
     Generate JSON schema for function definitions based on mode.
 
@@ -1072,7 +1076,7 @@ def get_fn_json(fn_name, mode):
             },
         }
     else:
-        raise ValueError("Invalid mode: {}".format(mode))
+        raise ValueError(f"Invalid mode: {mode}")
 
     # fn_json_template = \
     #     {
@@ -1189,7 +1193,7 @@ def get_fn_json(fn_name, mode):
     return fn_json_template
 
 
-def get_syntax_guidance_fn_json():
+def get_syntax_guidance_fn_json() -> Dict[str, Any]:
     """
     Generate JSON schema for syntax guidance function definition.
 
@@ -1236,7 +1240,15 @@ def get_syntax_guidance_fn_json():
     return fn_json_template
 
 
-def get_tools(fn_names):
+def get_tools(
+    fn_names: List[str],
+) -> Tuple[
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+    str,
+]:
     """
     Generate tool configurations for different syntax modes.
 
@@ -1273,7 +1285,7 @@ def get_tools(fn_names):
     return multiple_tools, single_tools, none_tools, all_tools, "auto"
 
 
-def get_syntax_guidance_tool():
+def get_syntax_guidance_tool() -> List[Dict[str, Any]]:
     """
     Generate tool definition for syntax guidance functionality.
 
