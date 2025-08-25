@@ -185,7 +185,7 @@ Example: “How much should we adjust the [component name] to make the model fea
 Example: "I believe changing [component name] is practical, by how much do I need to change in order to make the model feasible"
 [component name] category: parameters. If only constraint name is provided in the query, you need to infer the parameters involved in the constraint.
 
-2. components_retrival:
+2. components_retrieval:
 Use when: You need to know the current values or expressions of [component name] within the model.
 Example: “What are the values of the [component name]”
 Example: "How many [component name] are currently available"
@@ -708,7 +708,7 @@ def old_get_fn_json(fn_name: str) -> Dict[str, Any]:
         fn_json_template["function"][
             "description"
         ] += SENSITIVITY_ANALYSIS_FN_DESCRIPTION
-    elif fn_name == "components_retrival":
+    elif fn_name == "components_retrieval":
         fn_json_template["function"][
             "description"
         ] += COMPONENTS_RETRIEVAL_FN_DESCRIPTION
@@ -1191,7 +1191,7 @@ def get_fn_json(fn_name: str, mode: str) -> Dict[str, Any]:
         fn_json_template["function"][
             "description"
         ] += SENSITIVITY_ANALYSIS_FN_DESCRIPTION
-    elif fn_name == "components_retrival":
+    elif fn_name == "components_retrieval":
         fn_json_template["function"][
             "description"
         ] += COMPONENTS_RETRIEVAL_FN_DESCRIPTION

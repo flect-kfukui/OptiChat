@@ -89,7 +89,7 @@ st.session_state["py_path"] = None
 st.session_state["fn_names"] = [
     "feasibility_restoration",
     "sensitivity_analysis",
-    "components_retrival",
+    "components_retrieval",
     "evaluate_modification",
     "external_tools",
 ]

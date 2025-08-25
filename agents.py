@@ -1859,7 +1859,7 @@ class Engineer(Agent):
                     fn_output = sensitivity_analysis(
                         self.queried_components, self.queried_model, models_dict
                     )
-                elif fn_name == "components_retrival":
+                elif fn_name == "components_retrieval":
                     fn_output = components_retrieval(
                         self.queried_components, self.queried_model, models_dict
                     )

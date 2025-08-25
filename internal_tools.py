@@ -20,22 +20,24 @@ from optichat_types import (
     IndexGuidanceResult,
     ModelDictWithPyomo,
     ModelsContainer,
+    QueriedComponent,
+    QueriedComponentWithModification,
     SyntaxGuidanceInternalResult,
 )
 
 
-def fnArgsDecoder(queried_components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def fnArgsDecoder(queried_components: list[QueriedComponent]) -> list[QueriedComponent]:
     """
     Decode function arguments by converting string representations to appropriate types.
 
     Parameters
     ----------
-    queried_components : list of dict
+    queried_components : list[QueriedComponent]
         List of component dictionaries containing query parameters to be decoded.
 
     Returns
     -------
-    list of dict
+    list[QueriedComponent]
         Processed list of component dictionaries with decoded values.
         String values "none"/"null" are converted to None, "__all__" to slice(None).
         Tuple and list values are processed recursively with same conversions.
@@ -196,7 +198,7 @@ def syntax_guidance(
     queried_function : str
         Name of the function to provide guidance for.
         Must be one of: "feasibility_restoration", "sensitivity_analysis",
-        "components_retrival", "evaluate_modification", "external_tools".
+        "components_retrieval", "evaluate_modification", "external_tools".
     queried_components : list of str
         List of component names to analyze for syntax guidance.
     queried_model : str
@@ -219,7 +221,7 @@ def syntax_guidance(
     FUNCTIONS = [
         "feasibility_restoration",
         "sensitivity_analysis",
-        "components_retrival",
+        "components_retrieval",
         "evaluate_modification",
         "external_tools",
     ]
@@ -451,7 +453,7 @@ Make sure the delta value is consistent with the positivity/negativity of the pa
 
 
 def feasibility_restoration(
-    queried_components: List[Dict[str, Any]],
+    queried_components: list[QueriedComponent],
     queried_model: str,
     models_dict: ModelsContainer,
 ) -> str:
@@ -460,7 +462,7 @@ def feasibility_restoration(
 
     Parameters
     ----------
-    queried_components : list of dict
+    queried_components : list[QueriedComponent]
         List of component dictionaries containing parameter names and indexes to modify.
         Each dict should have 'component_name' and 'component_indexes' keys.
     queried_model : str
@@ -667,7 +669,7 @@ Users need to provide a valid parameter for feasibility restoration."""
 
 
 def sensitivity_analysis(
-    queried_components: List[Dict[str, Any]],
+    queried_components: list[QueriedComponent],
     queried_model: str,
     models_dict: ModelsContainer,
 ) -> str:
@@ -944,7 +946,7 @@ or if they are particularly interested in these parameters, they must specify a 
 
 
 def components_retrieval(
-    queried_components: List[Dict[str, Any]],
+    queried_components: list[QueriedComponent],
     queried_model: str,
     models_dict: ModelsContainer,
 ) -> str:
@@ -953,7 +955,7 @@ def components_retrieval(
 
     Parameters
     ----------
-    queried_components : list of dict
+    queried_components : list[QueriedComponent]
         List of component dictionaries containing component names and indexes to
         retrieve. Each dict should have 'component_name' and 'component_indexes' keys.
     queried_model : str
@@ -1104,7 +1106,7 @@ def components_retrieval(
 
 
 def evaluate_modification(
-    queried_components: List[Dict[str, Any]],
+    queried_components: list[QueriedComponentWithModification],
     queried_model: str,
     models_dict: ModelsContainer,
 ) -> str:
@@ -1113,7 +1115,7 @@ def evaluate_modification(
 
     Parameters
     ----------
-    queried_components : list of dict
+    queried_components : list[QueriedComponentWithModification]
         List of component dictionaries containing modification specifications.
         Each dict should have keys: 'component_name', 'component_indexes',
         'operation', and 'delta'.
