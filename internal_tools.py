@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pyomo.environ as pe
 from pyomo.core.base.constraint import ConstraintData, IndexedConstraint
-from pyomo.core.expr.calculus.derivatives import differentiate
+from pyomo.core.expr.calculus.derivatives import Modes, differentiate
 from pyomo.core.expr.visitor import (
     clone_expression,
     identify_mutable_parameters,
@@ -748,7 +748,7 @@ def sensitivity_analysis(
         --------
         For a parameter 'demand' at index 'location_A' that appears in constraints
         'supply_balance' and 'capacity_limit', this function returns:
-        
+
         [
             {
                 'const_name': 'supply_balance',
@@ -756,31 +756,31 @@ def sensitivity_analysis(
                 'coefficient': 1.0
             },
             {
-                'const_name': 'capacity_limit', 
+                'const_name': 'capacity_limit',
                 'const_indexes': ('location_A',),
                 'coefficient': -0.5
             }
         ]
         """
-        in_consts = []
+        in_consts: List[Dict[str, Any]] = []
         param_name_idx = str(eval("model." + param_name)[idx])
         for const_name in queried_model_dict["components"]["parameters"][param_name][
             "cons_in"
         ]:
-            model_const = eval("model." + const_name)
+            model_const: IndexedConstraint = eval("model." + const_name)
             for con_idx in model_const.index_set():
-                con_i = model_const[con_idx]
+                con_i: ConstraintData = model_const[con_idx]
                 expr_params = identify_mutable_parameters(con_i.expr)
                 for expr_param in expr_params:
                     if expr_param.name == param_name_idx:
                         coef_body = -differentiate(
-                            con_i.body, wrt=expr_param, mode="reverse_symbolic"
-                        )
+                            con_i.body, wrt=expr_param, mode=Modes.reverse_symbolic
+                        )  # type: ignore
                         coef_lower = differentiate(
-                            con_i.lower, wrt=expr_param, mode="reverse_symbolic"
+                            con_i.lower, wrt=expr_param, mode=Modes.reverse_symbolic
                         )
                         coef_upper = differentiate(
-                            con_i.upper, wrt=expr_param, mode="reverse_symbolic"
+                            con_i.upper, wrt=expr_param, mode=Modes.reverse_symbolic
                         )
                         coef = coef_body + coef_lower + coef_upper
                         in_consts.append(
@@ -791,6 +791,7 @@ def sensitivity_analysis(
                             }
                         )
                         break
+
         return in_consts
 
     param_const_pairs = []
@@ -847,7 +848,7 @@ def sensitivity_analysis(
                         "consts": locate_param(param_name, param_indexes),
                     }
                     param_const_pairs.append(param_const_pair)
-                elif param_indexes == None:
+                elif param_indexes is None:
                     param_const_pair = {
                         "param_name": param_name,
                         "param_indexes": param_indexes,
@@ -896,7 +897,7 @@ or if they are particularly interested in these parameters, they must specify a 
     for param_const_pair in param_const_pairs:
         param_name = param_const_pair["param_name"]
         param_indexes = param_const_pair["param_indexes"]
-        param_indexes = f" at {param_indexes}" if param_indexes != None else ""
+        param_indexes = f" at {param_indexes}" if param_indexes is not None else ""
         feedback = (
             feedback
             + f"when a small positive perturbation is made to {param_name}{param_indexes}, "
@@ -919,7 +920,7 @@ or if they are particularly interested in these parameters, they must specify a 
                 + f"the optimal objective value will change by {total_value} unit\n"
             )
         else:
-            feedback = feedback + f"the optimal objective value will not change \n"
+            feedback = feedback + "the optimal objective value will not change \n"
 
     feedback += "Please explain these results to the user. \n"
     feedback = "Feedback from internal tools: \n" + feedback
@@ -963,7 +964,6 @@ def components_retrival(
     - Provides human-readable descriptions with physical meanings
     """
     queried_model_dict = models_dict[queried_model]
-    model = queried_model_dict["model class"].clone()
     feedback = f"In the {queried_model}, "
     for component in queried_components:
         component_name = component["component_name"]
@@ -1064,7 +1064,7 @@ def components_retrival(
                 component_retrieval = str(model_component[component_indexes]())
             feedback = feedback + f"{component_retrieval}.\n"
 
-        elif component_indexes == None:
+        elif component_indexes is None:
             # supposed to retrieve one component
             feedback = feedback + f"{component_name} is "
             component_retrieval = ""
@@ -1125,11 +1125,13 @@ def evaluate_modification(
     - Handles feasible, infeasible, and time-limited results
     """
     queried_model_dict = models_dict[queried_model]
-    model = queried_model_dict["model class"].clone()
+    model: pe.ConcreteModel = queried_model_dict["model class"].clone()
+    original_obj_value = None
     for obj_name, obj in model.component_map(pe.Objective).items():
         original_obj_value = queried_model_dict["components"]["objective"][obj_name][
             "optimal_value"
         ]
+
     feedback = f"In the {queried_model}, the following modifications are made: \n"
     description = f"a model with the following changes to {queried_model}: \n"
     for component in queried_components:
@@ -1200,6 +1202,9 @@ def evaluate_modification(
                             value_after_modification
                         )
                         changed_or_fixed = " is fixed to "
+                    else:
+                        continue
+
                     feedback += (
                         f"{component_name} at {str(model_component_i_indexes)}"
                         + changed_or_fixed
@@ -1212,7 +1217,6 @@ def evaluate_modification(
                         + str(value_after_modification)
                         + ".\n"
                     )
-
             else:
                 if component_name in queried_model_dict["components"]["parameters"]:
                     value_for_modification = eval("model." + component_name)[
@@ -1246,6 +1250,9 @@ def evaluate_modification(
                     )
                     model_component[component_indexes].fix(value_after_modification)
                     changed_or_fixed = " is fixed to "
+                else:
+                    raise ValueError("Component not found or not modifiable.")
+
                 feedback += (
                     f"{component_name} at {str(component_indexes)}"
                     + changed_or_fixed
@@ -1296,6 +1303,9 @@ def evaluate_modification(
                         value_after_modification
                     )
                     changed_or_fixed = " is fixed to "
+                else:
+                    continue
+
                 feedback += (
                     f"{component_name} at {str(model_component_i_indexes)}"
                     + changed_or_fixed
@@ -1312,7 +1322,7 @@ def evaluate_modification(
         elif (
             isinstance(component_indexes, int)
             or isinstance(component_indexes, str)
-            or component_indexes == None
+            or component_indexes is None
         ):
             if component_name in queried_model_dict["components"]["parameters"]:
                 value_for_modification = eval("model." + component_name)[
@@ -1344,7 +1354,10 @@ def evaluate_modification(
                 )
                 model_component[component_indexes].fix(value_after_modification)
                 changed_or_fixed = " is fixed to "
-            idx = "" if component_indexes == None else f" at {str(component_indexes)}"
+            else:
+                raise ValueError("Component not found or not modifiable.")
+
+            idx = "" if component_indexes is None else f" at {str(component_indexes)}"
             feedback += (
                 f"{component_name}{idx}"
                 + changed_or_fixed
@@ -1374,11 +1387,11 @@ def evaluate_modification(
             feedback += f"The best objective value found so far is {results.Problem[0]['Upper bound']}.\n"
             feedback = (
                 feedback
-                + f"\n\nHelp the user analyze the influence of these modifications."
+                + "\n\nHelp the user analyze the influence of these modifications."
             )
             description = (
                 description[:7]
-                + f", which is not solved due to time limit"
+                + ", which is not solved due to time limit"
                 + description[7:]
             )
             new_model_dict["model description"] = description
@@ -1388,18 +1401,18 @@ def evaluate_modification(
             feedback += f"The optimal objective value found is {results.Problem[0]['Lower bound']}.\n"
             feedback = (
                 feedback
-                + f"\n\nHelp the user analyze the influence of these modifications. "
+                + "\n\nHelp the user analyze the influence of these modifications. "
             )
-            description = description[:7] + f", which is feasible" + description[7:]
+            description = description[:7] + ", which is feasible" + description[7:]
             new_model_dict["model description"] = description
             models_dict[new_model_name] = new_model_dict
         else:
             feedback += f"\n\nThe model now is infeasible, and the new model will be referred to as {new_model_name}."
             feedback = (
                 feedback
-                + f"\n\nHelp the user analyze the influence of these modifications."
+                + "\n\nHelp the user analyze the influence of these modifications."
             )
-            description = description[:7] + f", which is infeasible" + description[7:]
+            description = description[:7] + ", which is infeasible" + description[7:]
             new_model_dict["model description"] = description
             models_dict[new_model_name] = new_model_dict
 
@@ -1414,7 +1427,7 @@ def evaluate_modification(
             TerminationCondition.infeasible,
             TerminationCondition.infeasibleOrUnbounded,
         ]:
-            reminder += f"infeasible."
+            reminder += "infeasible."
 
         feedback += reminder
         feedback = "Feedback from internal tools: \n" + feedback
