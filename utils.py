@@ -122,6 +122,7 @@ def save_team_conversation(
             f.write(json.dumps(message) + "\n")
 
 
+@logger.catch
 def OptiChat_workflow_exp(
     args: Any,
     coordinator: Coordinator,

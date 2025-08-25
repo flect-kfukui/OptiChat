@@ -324,11 +324,8 @@ class Agent:
         if agent_name is None:
             agent_name = self.name
 
-        logger.debug("=" * 5 + str(agent_name) + "=" * 5)
-        logger.debug("-" * 5 + "prompt:" + "-" * 5)
-        logger.debug(prompt)
-        logger.debug("-" * 5 + "llm_response:" + "-" * 5)
-        logger.debug(llm_response)
+        logger.debug(f"Prompt: {prompt}")
+        logger.debug(f"LLM Response: {llm_response}")
 
     def llm_call_exp(
         self,
@@ -1694,8 +1691,9 @@ class Engineer(Agent):
                 fn_call = completion.choices[0].message.tool_calls[0].function
                 fn_name = fn_call.name
                 fn_args = fn_call.arguments
-                logger.debug(f"function name = {fn_name}")
-                logger.debug(f"function arguments = {fn_args}")
+                logger.debug(
+                    f"function name = {fn_name}, function arguments = {fn_args}"
+                )
             else:
                 raise Exception(
                     "No tool call executed by Operator, perhaps because of the 'auto' tool choice!"

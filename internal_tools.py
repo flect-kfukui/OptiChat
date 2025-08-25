@@ -498,7 +498,7 @@ def feasibility_restoration(
     for component in queried_components:
         param_name: str = component["component_name"]
         param_indexes = component["component_indexes"]
-        logger.debug(f"param_indexes: {param_indexes}")
+        logger.debug(f"param_name: {param_name}, param_indexes: {param_indexes}")
 
         component_type = get_component_type(param_name, queried_model_dict)
         if component_type == "parameters":
@@ -586,7 +586,7 @@ Users need to provide a valid parameter for feasibility restoration."""
                 model.slack_iis_constraints.add(new_expr)
                 const.deactivate()
             except Exception as e:
-                logger.debug(f"Skip the skipped constraint: {e}")
+                logger.error(f"Skip the skipped constraint: {e}")
 
     # replace objective
     objectives = model.component_objects(pe.Objective, active=True)
@@ -813,7 +813,7 @@ def sensitivity_analysis(
     for component in queried_components:
         param_name = component["component_name"]
         param_indexes = component["component_indexes"]
-        logger.debug(f"param_indexes: {param_indexes}")
+        logger.debug(f"param_name: {param_name}, param_indexes: {param_indexes}")
         component_type = get_component_type(param_name, queried_model_dict)
         if component_type == "parameters":
 
@@ -981,11 +981,14 @@ def components_retrieval(
     - Provides human-readable descriptions with physical meanings
     """
     queried_model_dict = models_dict[queried_model]
+    model: pe.ConcreteModel = queried_model_dict["model_class"].clone()  # noqa: F841
     feedback = f"In the {queried_model}, "
     for component in queried_components:
         component_name = component["component_name"]
         component_indexes = component["component_indexes"]
-        logger.debug(f"component_indexes: {component_indexes}")
+        logger.debug(
+            f"component_name: {component_name}, component_indexes: {component_indexes}"
+        )
         model_component = eval("model." + component_name)
 
         if isinstance(component_indexes, tuple):
@@ -1169,9 +1172,12 @@ def evaluate_modification(
             )
 
         component_delta = str(component["delta"])
-        logger.debug(f"component_indexes: {component_indexes}")
-        logger.debug(f"component_operation: {component_operation}")
-        logger.debug(f"component_delta: {component_delta}")
+        logger.debug(
+            f"component_name: {component_name}, "
+            f"component_indexes: {component_indexes}, "
+            f"component_operation: {component_operation}, "
+            f"component_delta: {component_delta}"
+        )
         model_component = eval("model." + component_name)
 
         if isinstance(component_indexes, tuple):
