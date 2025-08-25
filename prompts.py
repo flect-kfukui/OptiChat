@@ -1,54 +1,32 @@
 from typing import Any, Dict, List, Tuple
 
-feasibility_restoration_fn_description = """
+FEASIBILITY_RESTORATION_FN_DESCRIPTION = """
 Use when: The model is infeasible and you need to find out the minimal change to specific [component name] for restoring feasibility.
 Example: “How much should we adjust the [component name] to make the model feasible”
 Example: "I believe changing [component name] is practical, by how much do I need to change in order to make the model feasible"
 """
-components_retrival_fn_description = """
+
+COMPONENTS_RETRIEVAL_FN_DESCRIPTION = """
 Use when: You need to know the current values or expressions of [component name] within the model.
 Example: “What are the values of the [component name]”
 Example: "How many [component name] are currently available"
 """
-sensitivity_analysis_fn_description = """
+
+SENSITIVITY_ANALYSIS_FN_DESCRIPTION = """
 Use when: The model is feasible and you want to understand the impact of changing [component name] on the optimal objective value, **without specifying the extent of changes**.
 Example: “How will the optimal profit change with the change in the [component name]” (didn't specify how much the change is)
 Example: "How stable is the objective value in response to variations in the [component name]" (didn't specify how much the change is)
 Example: "Will the optimal value be greatly affected if we have more [component name]" (didn't specify how much the change is)
 """
-evaluate_modification_fn_description = """
+
+EVALUATE_MODIFICATION_FN_DESCRIPTION = """
 Use when: The model is feasible and you want to understand the impact of changing [component name] on the optimal objective value, **by specifying the extent of changes**.
 Example: “How will the optimal profit change with **a 10% increase** in the [component name]” (specified the change is **a 10% increase**)
 Example: "How stable is the objective value in response to the modification that [component name] is **decreased by 20 units**" (specified the change is **decreased by 20 units**)
 Example: "Will the optimal value be greatly affected if we have **two more** [component name]" (specified the change is **two more**)
 """
 
-
-def get_prompts(prompt: str) -> str | Dict[str, Any]:
-    """
-    Retrieve and format various prompt templates for model analysis.
-
-    Parameters
-    ----------
-    prompt : str
-        The specific prompt type to retrieve and format.
-
-    Returns
-    -------
-    str | Dict[str, Any]
-        Formatted prompt template ready for use with language models.
-
-    Notes
-    -----
-    Central repository for all prompt templates used in the OptiChat system:
-    - Model interpretation prompts for component analysis
-    - Illustration prompts for model description
-    - Inference prompts for user queries
-    - Function guidance prompts for tool usage
-
-    The function handles prompt formatting with appropriate context and examples.
-    """
-    need2describe_prompt = """
+NODE2DESCRIBE_PROMPT = """
 Here are the name of {component_type} that need to be described
 -----
 {component_names}
@@ -57,42 +35,44 @@ Here are the name of {component_type} that need to be described
 
 """
 
-    model_interpretation_json = {
-        "components": {
-            "sets": [
-                {
-                    "name": "The name of the component in sets",
-                    "description": "The description of the component",
-                }
-            ],
-            "parameters": [
-                {
-                    "name": "The name of the component in parameters",
-                    "description": "The description of the component",
-                }
-            ],
-            "variables": [
-                {
-                    "name": "The name of the component in variables",
-                    "description": "The description of the component",
-                }
-            ],
-            "constraints": [
-                {
-                    "name": "The name of the component in constraints",
-                    "description": "The description of the component",
-                }
-            ],
-            "objective": [
-                {
-                    "name": "The name of the component in objective",
-                    "description": "The description of the component",
-                }
-            ],
-        }
-    }
 
-    model_interpretation_prompt = """
+MODEL_INTERPRETATION_JSON = {
+    "components": {
+        "sets": [
+            {
+                "name": "The name of the component in sets",
+                "description": "The description of the component",
+            }
+        ],
+        "parameters": [
+            {
+                "name": "The name of the component in parameters",
+                "description": "The description of the component",
+            }
+        ],
+        "variables": [
+            {
+                "name": "The name of the component in variables",
+                "description": "The description of the component",
+            }
+        ],
+        "constraints": [
+            {
+                "name": "The name of the component in constraints",
+                "description": "The description of the component",
+            }
+        ],
+        "objective": [
+            {
+                "name": "The name of the component in objective",
+                "description": "The description of the component",
+            }
+        ],
+    }
+}
+
+
+MODEL_INTERPRETATION_PROMPT = """
 You are an operations research expert and your role is to use PLAIN ENGLISH to interpret an optimization model written in Pyomo.
 The Pyomo code is given below:
 
@@ -117,7 +97,7 @@ Then, generate a json file accordingly with the following format (STICK TO THIS 
 Take a deep breath and solve the problem step by step.
 """
 
-    model_illustration_prompt = """
+MODEL_ILLUSTRATION_PROMPT = """
 You are an operations research expert and your role is to introduce an optimization model to non-experts, based on an abstract representation of the model in json format.
 The json representation is given below:
 
@@ -134,7 +114,8 @@ The json representation is given below:
 The explanation must be coherent and easy to understand for the users who are experts in the filed for which this model is built but not in optimization.
 """
 
-    model_inference_prompt = """
+
+MODEL_INFERENCE_PROMPT = """
 You are an operations research expert and your role is to infer why an optimization model is infeasible, based on an abstract representation of the infeasible model in json format.
 Particularly, your team has identified the Irreducible Infeasible Subset (IIS) of the model, which is given below:
 
@@ -158,7 +139,8 @@ To understand what the parameters and the constraints mean, the json representat
 - Assess the practical implications of the recommendations. For example, increasing the number of workers implies hiring more workers, which incurs additional costs.
 """
 
-    coordinator_prompt = """
+
+COORDINATOR_PROMPT = """
 You're a coordinator in a team of optimization experts. The goal of the team is to help non-experts analyze an
 optimization problem. Your task is to choose the next expert to work on the problem based on the current situation.
 
@@ -177,7 +159,7 @@ to identify the next agent to work on the problem, and also the task it has to c
 {{ "agent_name": "Explainer", "task": "DONE" }}
 """
 
-    explainer_prompt = """
+EXPLAINER_PROMPT = """
 You're an optimization expert who helps your team answer user queries in MARKDOWN format.
 
 - The users are not experts in optimization, but they are experts in the filed for which this model is built.
@@ -186,7 +168,8 @@ You're an optimization expert who helps your team answer user queries in MARKDOW
 - If Operators and Programmers in your team have provided technical feedback, then you need to summarize the feedback because the user cannot see them.
 """
 
-    syntax_reminder_prompt = """
+
+SYNTAX_REMINDER_PROMPT = """
 You're an operator working on a pyomo model.
 Your task is to identify the following arguments:
 - the component names that the user is interested in,
@@ -237,113 +220,113 @@ Use the following dictionary to find the correct [component name] based on its d
 In the form of 'model_integer', e.g. 'model_1'
 """
 
-    operator_prompt = """
+OPERATOR_PROMPT = """
 You're an optimization expert who helps your team to access and interact with optimization models by internal tools.
 
 Your task is to invoke the most appropriate tool correctly based on the user's query and system reminders.
 """
 
-    #     code_reminder_prompt = """
-    # {source_code}
-    #
-    # # OPTICHAT REVISION CODE GOES HERE
-    #
-    # from pyomo.environ import SolverFactory, TerminationCondition
-    # solver = SolverFactory('gurobi')
-    # solver.options['TimeLimit'] = 300  # 5min time limit
-    # results = solver.solve(model, tee=False)
-    # print("Solver Status: ", results.solver.status)
-    # print("Termination Condition: ", results.solver.termination_condition)
-    # if results.solver.termination_condition == TerminationCondition.optimal:
-    #     from pyomo.environ import Objective
-    #     for obj_name, obj in model.component_map(Objective).items():
-    #         print('Optimal Objective Value: ', pyo.value(obj))
-    # else:
-    #     print("Model is infeasible or unbounded, no optimal objective value is available.")
-    #
-    # # OPTICHAT PRINT CODE GOES HERE
-    #
-    # """
+# CODE_REMINDER_PROMPT = """
+# {source_code}
+#
+# # OPTICHAT REVISION CODE GOES HERE
+#
+# from pyomo.environ import SolverFactory, TerminationCondition
+# solver = SolverFactory('gurobi')
+# solver.options['TimeLimit'] = 300  # 5min time limit
+# results = solver.solve(model, tee=False)
+# print("Solver Status: ", results.solver.status)
+# print("Termination Condition: ", results.solver.termination_condition)
+# if results.solver.termination_condition == TerminationCondition.optimal:
+#     from pyomo.environ import Objective
+#     for obj_name, obj in model.component_map(Objective).items():
+#         print('Optimal Objective Value: ', pyo.value(obj))
+# else:
+#     print("Model is infeasible or unbounded, no optimal objective value is available.")
+#
+# # OPTICHAT PRINT CODE GOES HERE
+#
+# """
 
-    #     programmer_prompt = """
-    # You're an optimization expert who helps your team to write pyomo code to answer users questions.
-    # (1) write code snippet to revise the model, only when the user doubts the model's optimal solution and provides a counterexample
-    # (2) write code snippet to print out the information useful for answering the user's question
-    #
-    # Output Format:
-    # ==========
-    # ```python
-    # CODE SNIPPET FOR REVISING THE MODEL
-    # ```
-    #
-    # ```python
-    # CODE SNIPPET FOR PRINTING OUT USEFUL INFORMATION
-    # ```
-    # ==========
-    #
-    # Here are some example questions and their answer codes:
-    # ----- EXAMPLE 1 -----
-    # Question: Why is it not recommended to use just one supplier for roastery 2?
-    #
-    # Answer Code:
-    # ```python
-    # # user is actually interested in the case that only one supplier can supply roastery 2 and does not believe the optimal solution.
-    # model.force_one_supplier = ConstraintList()
-    # model.force_one_supplier.add(sum(model.z[s,'roastery2'] for s in model.suppliers) <= 1)
-    # for s in model.suppliers:
-    #     model.force_one_supplier.add(model.x[s,'roastery2'] <= model.capacity_in_supplier[s] * model.z[s, 'roastery2'])
-    # ```
-    #
-    # ```python
-    # # I print out the new optimal objective value so that you can tell the user how the objective value changes if only one supplier supplies roastery 2.
-    # print('If forcing only one supplier to supply roastery 2, the optimal objective value will become: ', model.obj())
-    # ```
-    #
-    # ----- EXAMPLE 2 -----
-    # Question: Why is it not recommended to have production cost larger than transportation cost in the optimal setting?
-    #
-    # Answer Code:
-    # ```python
-    # # user does not believe the optimal solution obtained when production cost smaller than transportation cost.
-    # # so we force production cost to be less than transportation cost to see what will happen.
-    # model.counter_example = ConstraintList()
-    # model.counter_example.add(model.production <= model.transportation)
-    # ```
-    #
-    # ```python
-    # # I print out the new optimal objective value so that you can tell the user how the objective value changes.
-    # print('If forcing production cost be smaller than transportation cost, the optimal objective value will become: ', model.obj())
-    # ```
-    #
-    # - Code reminder has provided you with the source code of the pyomo model
-    # - Your written code will be added to the lines with substring: "# OPTICHAT *** CODE GOES HERE"
-    # So, you don't need to repeat the source code that has already been provided by Code reminder.
-    # - The code for re-solving the model has already been given,
-    # So you don't need to add it. Solving the model repeatedly can lead to errors.
-    # - Your written code should be accompanied by comments to explain the purpose of the code.
-    # - Evaluator will execute the new code for you and read the execution result.
-    # So, you MUST print out the model information that you believe is necessary for the user's question.
-    # """
+CODE_REMINDER_PROMPT = """{source_code}\n# YOUR CODE GOES HERE\n"""
 
-    code_reminder_prompt = """{source_code}\n# YOUR CODE GOES HERE\n"""
+# PROGRAMMER_PROMPT = """
+# You're an optimization expert who helps your team to write pyomo code to answer users questions.
+# (1) write code snippet to revise the model, only when the user doubts the model's optimal solution and provides a counterexample
+# (2) write code snippet to print out the information useful for answering the user's question
+#
+# Output Format:
+# ==========
+# ```python
+# CODE SNIPPET FOR REVISING THE MODEL
+# ```
+#
+# ```python
+# CODE SNIPPET FOR PRINTING OUT USEFUL INFORMATION
+# ```
+# ==========
+#
+# Here are some example questions and their answer codes:
+# ----- EXAMPLE 1 -----
+# Question: Why is it not recommended to use just one supplier for roastery 2?
+#
+# Answer Code:
+# ```python
+# # user is actually interested in the case that only one supplier can supply roastery 2 and does not believe the optimal solution.
+# model.force_one_supplier = ConstraintList()
+# model.force_one_supplier.add(sum(model.z[s,'roastery2'] for s in model.suppliers) <= 1)
+# for s in model.suppliers:
+#     model.force_one_supplier.add(model.x[s,'roastery2'] <= model.capacity_in_supplier[s] * model.z[s, 'roastery2'])
+# ```
+#
+# ```python
+# # I print out the new optimal objective value so that you can tell the user how the objective value changes if only one supplier supplies roastery 2.
+# print('If forcing only one supplier to supply roastery 2, the optimal objective value will become: ', model.obj())
+# ```
+#
+# ----- EXAMPLE 2 -----
+# Question: Why is it not recommended to have production cost larger than transportation cost in the optimal setting?
+#
+# Answer Code:
+# ```python
+# # user does not believe the optimal solution obtained when production cost smaller than transportation cost.
+# # so we force production cost to be less than transportation cost to see what will happen.
+# model.counter_example = ConstraintList()
+# model.counter_example.add(model.production <= model.transportation)
+# ```
+#
+# ```python
+# # I print out the new optimal objective value so that you can tell the user how the objective value changes.
+# print('If forcing production cost be smaller than transportation cost, the optimal objective value will become: ', model.obj())
+# ```
+#
+# - Code reminder has provided you with the source code of the pyomo model
+# - Your written code will be added to the lines with substring: "# OPTICHAT *** CODE GOES HERE"
+# So, you don't need to repeat the source code that has already been provided by Code reminder.
+# - The code for re-solving the model has already been given,
+# So you don't need to add it. Solving the model repeatedly can lead to errors.
+# - Your written code should be accompanied by comments to explain the purpose of the code.
+# - Evaluator will execute the new code for you and read the execution result.
+# So, you MUST print out the model information that you believe is necessary for the user's question.
+# """
 
-    programmer_prompt = """
-    You're an optimization expert who helps your team to write pyomo code to answer users questions, such as
-    - write code snippet to revise the model, only when the user doubts the model's optimal solution and provides a counterexample
-    - write code snippet to print out the information useful for answering the user's question
+PROGRAMMER_PROMPT = """
+You're an optimization expert who helps your team to write pyomo code to answer users questions, such as
+- write code snippet to revise the model, only when the user doubts the model's optimal solution and provides a counterexample
+- write code snippet to print out the information useful for answering the user's question
 
-    Output Format:
-    ==========
-    ```python
-    YOUR CODE SNIPPET
-    ```
-    ==========
+Output Format:
+==========
+```python
+YOUR CODE SNIPPET
+```
+==========
 
-    Here are some example questions and their answer codes:
-    ----- EXAMPLE 1 -----
-    Question: Why is it not recommended to use just one supplier for roastery 2?
+Here are some example questions and their answer codes:
+----- EXAMPLE 1 -----
+Question: Why is it not recommended to use just one supplier for roastery 2?
 
-    Answer Code:
+Answer Code:
 ```python
 # user is actually interested in the case that only one supplier can supply roastery 2 and does not believe the optimal solution.
 model.force_one_supplier = ConstraintList()
@@ -371,10 +354,10 @@ else:
 print('If forcing only one supplier to supply roastery 2, the optimal objective value will become: ', model.obj())
 ```
 
-    ----- EXAMPLE 2 -----
-    Question: Why is it not recommended to have production cost larger than transportation cost in the optimal setting?
+----- EXAMPLE 2 -----
+Question: Why is it not recommended to have production cost larger than transportation cost in the optimal setting?
 
-    Answer Code:
+Answer Code:
 ```python
 # user does not believe the optimal solution obtained when production cost smaller than transportation cost.
 # so we force production cost to be less than transportation cost to see what will happen.
@@ -400,17 +383,18 @@ else:
 print('If forcing production cost be smaller than transportation cost, the optimal objective value will become: ', model.obj())
 ```
 
-    - Code reminder has provided you with the source code of the pyomo model
-    - Your written code will be added to the lines with substring: "# YOUR CODE GOES HERE"
-    So, you don't need to repeat the source code that has already been provided by Code reminder.
-    - The standard code for re-solving the model has been given in the examples,
-    So, you MUST use the standard code to re-solve the model to avoid undesired execution errors and long execution result.
-    - Your written code should be accompanied by comments to explain the purpose of the code.
-    - Evaluator will execute the new code for you and read the execution result.
-    So, you MUST print out the model information that you believe is necessary for the user's question.
-    """
+- Code reminder has provided you with the source code of the pyomo model
+- Your written code will be added to the lines with substring: "# YOUR CODE GOES HERE"
+So, you don't need to repeat the source code that has already been provided by Code reminder.
+- The standard code for re-solving the model has been given in the examples,
+So, you MUST use the standard code to re-solve the model to avoid undesired execution errors and long execution result.
+- Your written code should be accompanied by comments to explain the purpose of the code.
+- Evaluator will execute the new code for you and read the execution result.
+So, you MUST print out the model information that you believe is necessary for the user's question.
+"""
 
-    evaluator_prompt = """
+
+EVALUATOR_PROMPT = """
 You're an optimization expert who helps your team to review pyomo code,
 based on the execution result of the code provided by the programmer.
 
@@ -427,7 +411,7 @@ Generate the following json file if you reject the code, and provide your own co
 This is because programmers are trying to create a counterfactual example that the user is interested in, and this counterfactual example may be infeasible in nature.
 """
 
-    test_prompt = """
+TEST_PROMPT = """
 You are a judge who determines if the LLM’s answer passes the test.
 **Criteria**:
 1. Is the code bug-free?
@@ -442,32 +426,58 @@ Human Expert Answer:
 - No additional comments or explanations.
 """
 
+
+def get_prompts(prompt: str) -> str | Dict[str, Any]:
+    """
+    Retrieve and format various prompt templates for model analysis.
+
+    Parameters
+    ----------
+    prompt : str
+        The specific prompt type to retrieve and format.
+
+    Returns
+    -------
+    str | Dict[str, Any]
+        Formatted prompt template ready for use with language models.
+
+    Notes
+    -----
+    Central repository for all prompt templates used in the OptiChat system:
+    - Model interpretation prompts for component analysis
+    - Illustration prompts for model description
+    - Inference prompts for user queries
+    - Function guidance prompts for tool usage
+
+    The function handles prompt formatting with appropriate context and examples.
+    """
+
     if prompt == "model_interpretation_prompt":
-        return model_interpretation_prompt
+        return MODEL_INTERPRETATION_PROMPT
     elif prompt == "need2describe_prompt":
-        return need2describe_prompt
+        return NODE2DESCRIBE_PROMPT
     elif prompt == "model_interpretation_json":
-        return model_interpretation_json
+        return MODEL_INTERPRETATION_JSON
     elif prompt == "model_illustration_prompt":
-        return model_illustration_prompt
+        return MODEL_ILLUSTRATIOIN_PROMPT
     elif prompt == "model_inference_prompt":
-        return model_inference_prompt
+        return MODEL_INFERENCE_PROMPT
     elif prompt == "coordinator_prompt":
-        return coordinator_prompt
+        return COORDINATOR_PROMPT
     elif prompt == "explainer_prompt":
-        return explainer_prompt
+        return EXPLAINER_PROMPT
     elif prompt == "syntax_reminder_prompt":
-        return syntax_reminder_prompt
+        return SYNTAX_REMINDER_PROMPT
     elif prompt == "operator_prompt":
-        return operator_prompt
+        return OPERATOR_PROMPT
     elif prompt == "code_reminder_prompt":
-        return code_reminder_prompt
+        return CODE_REMINDER_PROMPT
     elif prompt == "programmer_prompt":
-        return programmer_prompt
+        return PROGRAMMER_PROMPT
     elif prompt == "evaluator_prompt":
-        return evaluator_prompt
+        return EVALUATOR_PROMPT
     elif prompt == "test_prompt":
-        return test_prompt
+        return TEST_PROMPT
     else:
         raise ValueError(f"Unknown prompt type: {prompt}")
 
@@ -693,19 +703,19 @@ def old_get_fn_json(fn_name: str) -> Dict[str, Any]:
     if fn_name == "feasibility_restoration":
         fn_json_template["function"][
             "description"
-        ] += feasibility_restoration_fn_description
+        ] += FEASIBILITY_RESTORATION_FN_DESCRIPTION
     elif fn_name == "sensitivity_analysis":
         fn_json_template["function"][
             "description"
-        ] += sensitivity_analysis_fn_description
+        ] += SENSITIVITY_ANALYSIS_FN_DESCRIPTION
     elif fn_name == "components_retrival":
         fn_json_template["function"][
             "description"
-        ] += components_retrival_fn_description
+        ] += COMPONENTS_RETRIEVAL_FN_DESCRIPTION
     elif fn_name == "evaluate_modification":
         fn_delta_json_template["function"][
             "description"
-        ] += evaluate_modification_fn_description
+        ] += EVALUATE_MODIFICATION_FN_DESCRIPTION
         return fn_delta_json_template
     return fn_json_template
 
@@ -1176,19 +1186,19 @@ def get_fn_json(fn_name: str, mode: str) -> Dict[str, Any]:
     if fn_name == "feasibility_restoration":
         fn_json_template["function"][
             "description"
-        ] += feasibility_restoration_fn_description
+        ] += FEASIBILITY_RESTORATION_FN_DESCRIPTION
     elif fn_name == "sensitivity_analysis":
         fn_json_template["function"][
             "description"
-        ] += sensitivity_analysis_fn_description
+        ] += SENSITIVITY_ANALYSIS_FN_DESCRIPTION
     elif fn_name == "components_retrival":
         fn_json_template["function"][
             "description"
-        ] += components_retrival_fn_description
+        ] += COMPONENTS_RETRIEVAL_FN_DESCRIPTION
     elif fn_name == "evaluate_modification":
         fn_delta_json_template["function"][
             "description"
-        ] += evaluate_modification_fn_description
+        ] += EVALUATE_MODIFICATION_FN_DESCRIPTION
         return fn_delta_json_template
     return fn_json_template
 
@@ -1282,6 +1292,7 @@ def get_tools(
             single_tools.append(get_fn_json(fn_name, "single"))
             none_tools.append(get_fn_json(fn_name, "none"))
             all_tools.append(get_fn_json(fn_name, "all"))
+
     return multiple_tools, single_tools, none_tools, all_tools, "auto"
 
 
