@@ -1,22 +1,26 @@
 import copy
 import importlib
+import importlib.util
 import io
 import os
 import re
-import signal
 import sys
 from contextlib import redirect_stdout
-from io import StringIO
-from typing import Union
+from typing import Any, Dict, Generator, List, Set, Tuple
 
 import pyomo.environ as pe
-from pyomo.contrib.iis import *
-from pyomo.core.expr.calculus.derivatives import differentiate
+from pyomo.contrib import iis
+from pyomo.core.base.constraint import ConstraintData, IndexedConstraint
+from pyomo.core.base.objective import ScalarObjective
+from pyomo.core.base.var import IndexedVar, VarData
 from pyomo.core.expr.visitor import identify_mutable_parameters, identify_variables
-from pyomo.opt import SolverFactory, SolverStatus, TerminationCondition
+from pyomo.opt import SolverFactory, TerminationCondition
+from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 
-def find_lhs_params(constraint_expr, param_names, var_names):
+def find_lhs_params(
+    constraint_expr: str, param_names: List[str], var_names: List[str]
+) -> Set[str]:
     """
     Find parameters that appear on the left-hand side (LHS) of constraints.
 
@@ -41,12 +45,12 @@ def find_lhs_params(constraint_expr, param_names, var_names):
     coefficients of variables (LHS) vs. right-hand side constants (RHS).
     Uses parentheses analysis and operator precedence to make this distinction.
     """
-    lhs_params = set()
-    lhs_params_coefs = {}
+    lhs_params: Set[str] = set()
 
     # Handle bracketed terms (indexes)
     # Step 1: Extract bracketed terms from the constraint expression
     bracketed_terms = re.findall(r"\[.*?\]", constraint_expr)
+
     # Step 2: Replace bracketed terms with placeholders
     placeholders = {}
     modified_expr = constraint_expr
@@ -54,9 +58,12 @@ def find_lhs_params(constraint_expr, param_names, var_names):
         placeholder = f" __PLACEHOLDER_{i}__ "
         placeholders.update({placeholder: term})
         modified_expr = modified_expr.replace(term, placeholder, 1)
-    # Step 3: Split the modified expression around non-word characters, preserving placeholders
-    parts = re.split("(\W)", modified_expr)
+
+    # Step 3: Split the modified expression around non-word characters,
+    # preserving placeholders
+    parts = re.split(r"(\W)", modified_expr)
     parts = [part for part in parts if part.strip() != ""]
+
     # Step 4: Re-insert bracketed terms in place of placeholders
     final_parts = []
     for part in parts:
@@ -67,20 +74,22 @@ def find_lhs_params(constraint_expr, param_names, var_names):
             final_parts.append(part)
     parts = final_parts
 
-    def locate_name(names, parts):
+    def locate_name(
+        names: List[str], parts: List[str]
+    ) -> Dict[str, Dict[str, List[int]]]:
         """
         Locate indices of specified names within expression parts.
 
         Parameters
         ----------
-        names : list
+        names : list[str]
             Names to search for in the expression parts.
-        parts : list
+        parts : list[str]
             Tokenized expression parts to search within.
 
         Returns
         -------
-        dict
+        dict[str, dict[str, list[int]]]
             Dictionary mapping each found name to its index positions.
         """
         dict = {}
@@ -89,9 +98,10 @@ def find_lhs_params(constraint_expr, param_names, var_names):
                 # find the idx of param_name/var_name in parts
                 name_idx = [i for i, x in enumerate(parts) if x == name]
                 dict[name] = {"indexes": name_idx}
+
         return dict
 
-    def in_parentheses(index):
+    def in_parentheses(index: int) -> Tuple[int, int]:
         """
         Count parentheses balance at given index position.
 
@@ -105,13 +115,14 @@ def find_lhs_params(constraint_expr, param_names, var_names):
         tuple of (int, int)
             Number of left and right parentheses before the index.
         """
-        lbrace = 0
-        rbrace = 0
+        lbrace: int = 0
+        rbrace: int = 0
         for i in range(index):
             if parts[i] == "(":
                 lbrace += 1
             elif parts[i] == ")":
                 rbrace += 1
+
         return lbrace, rbrace
 
     param_dict = locate_name(param_names, parts)
@@ -159,10 +170,13 @@ def find_lhs_params(constraint_expr, param_names, var_names):
                             elif parts[i] in ["*", "/"]:
                                 lhs_params.add(param_name)
                                 break
+
     return lhs_params
 
 
-def pyomo2json(model, termination_condition="Unknown"):
+def pyomo2json(
+    model: pe.ConcreteModel, termination_condition: str = "Unknown"
+) -> Dict[str, Any]:
     """
     Convert a Pyomo optimization model to JSON representation.
 
@@ -202,6 +216,8 @@ def pyomo2json(model, termination_condition="Unknown"):
     model_dict["components"] = {}
 
     model_dict["components"]["sets"] = {}
+    set_name: str
+    _set: pe.Set
     for set_name, _set in model.component_map(pe.Set).items():
         set_dict = {}
         set_dict["name"] = set_name
@@ -210,6 +226,8 @@ def pyomo2json(model, termination_condition="Unknown"):
         model_dict["components"]["sets"][set_name] = set_dict
 
     model_dict["components"]["parameters"] = {}
+    param_name: str
+    param: pe.Param
     for param_name, param in model.component_map(pe.Param).items():
         param_dict = {}
         param_dict["name"] = param_name
@@ -238,6 +256,8 @@ def pyomo2json(model, termination_condition="Unknown"):
             ] = f"index set for {param_name} parameter"
 
     model_dict["components"]["variables"] = {}
+    var_name: str
+    var: IndexedVar
     for var_name, var in model.component_map(pe.Var).items():
         var_dict = {}
         var_dict["name"] = var_name
@@ -254,7 +274,7 @@ def pyomo2json(model, termination_condition="Unknown"):
         # check if the model is an IP
         if model_dict["model type"] != "IP":
             for var_idx in var:
-                var_i = var[var_idx]
+                var_i: VarData = var[var_idx]
                 if var_i.is_binary():
                     model_dict["model type"] = "IP"
 
@@ -266,6 +286,8 @@ def pyomo2json(model, termination_condition="Unknown"):
             ] = f"index set for {var_name} variable"
 
     model_dict["components"]["constraints"] = {}
+    con_name: str
+    con: IndexedConstraint
     for con_name, con in model.component_map(pe.Constraint).items():
         con_dict = {}
         con_dict["name"] = con_name
@@ -275,27 +297,34 @@ def pyomo2json(model, termination_condition="Unknown"):
         else:
             con_dict["is_indexed"] = con.is_indexed()
             con_dict["index_set"] = None  # non_indexed_con[None] is accessible
-        # for each type of constraint, identify the mutable parameter names AND identify the RHS parameters
+
+        # for each type of constraint, identify the mutable parameter names
+        # AND identify the RHS parameters
         con_dict["params_in"] = set()
         con_dict["vars_in"] = set()
         for con_idx in con:
-            con_i = con[con_idx]
+            con_i: ConstraintData = con[con_idx]
             expr_params = identify_mutable_parameters(con_i.expr)
             expr_vars = identify_variables(con_i.expr)
             for p in expr_params:
                 p_name = p.name.split("[")[0]
                 con_dict["params_in"].add(p_name)
                 model_dict["components"]["parameters"][p_name]["cons_in"].add(con_name)
+
             for v in expr_vars:
                 v_name = v.name.split("[")[0]
                 con_dict["vars_in"].add(v_name)
                 model_dict["components"]["variables"][v_name]["cons_in"].add(con_name)
 
-            con_i_expr = con_i.expr.to_string()
+            if con_i.expr is not None:
+                con_i_expr = con_i.expr.to_string()
+            else:
+                raise ValueError(f"Constraint {con_name} has no expression.")
+
             lhs_params = find_lhs_params(
                 con_i_expr,
-                model_dict["components"]["parameters"].keys(),
-                model_dict["components"]["variables"].keys(),
+                list(model_dict["components"]["parameters"].keys()),
+                list(model_dict["components"]["variables"].keys()),
             )
             for lhs_param in lhs_params:
                 model_dict["components"]["parameters"][lhs_param]["is_RHS"] = False
@@ -311,6 +340,8 @@ def pyomo2json(model, termination_condition="Unknown"):
             ] = f"index set for {con_name} constraint"
 
     model_dict["components"]["objective"] = {}
+    obj_name: str
+    obj: ScalarObjective
     for obj_name, obj in model.component_map(pe.Objective).items():
         obj_dict = {}
         obj_dict["name"] = obj_name
@@ -340,7 +371,7 @@ def pyomo2json(model, termination_condition="Unknown"):
     return model_dict
 
 
-def iis2json(ilp_path, model_dict):
+def iis2json(ilp_path: str, model_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract Irreducible Infeasible Subsystem (IIS) information from ILP file.
 
@@ -394,13 +425,15 @@ def iis2json(ilp_path, model_dict):
     return model_dict
 
 
-def initial_loading(file, is_uploaded=True):
+def initial_loading(
+    file: UploadedFile | str, is_uploaded: bool = True
+) -> Tuple[Dict[str, Any], str]:
     """
     Load and initialize a Pyomo optimization model from file.
 
     Parameters
     ----------
-    file : file-like object or str
+    file : UploadedFile | str
         If is_uploaded=True, a streamlit uploaded file object.
         If is_uploaded=False, a file path string.
     is_uploaded : bool, default=True
@@ -420,9 +453,12 @@ def initial_loading(file, is_uploaded=True):
     - Handles both uploaded files and local file paths
     - Returns complete model dictionary ready for analysis
     """
-    if is_uploaded:
+    if isinstance(file, UploadedFile) and is_uploaded:
         code = file.getvalue().decode("utf-8")
         spec = importlib.util.spec_from_loader("uploaded_model", loader=None)
+        if spec is None:
+            raise ImportError("Could not create a module spec for the uploaded model.")
+
         uploaded_model = importlib.util.module_from_spec(spec)
         sys.modules["uploaded_model"] = uploaded_model
 
@@ -432,7 +468,7 @@ def initial_loading(file, is_uploaded=True):
         model = uploaded_model.model
         model_name = os.path.splitext(file.name)[0]
 
-    else:
+    elif isinstance(file, str) and not is_uploaded:
         with open(file, "r") as f:
             code = f.read()
         f.close()
@@ -440,6 +476,8 @@ def initial_loading(file, is_uploaded=True):
         model_name = os.path.splitext(os.path.basename(file))[0]
         module = importlib.import_module(directory_path + "." + model_name)
         model = module.model
+    else:
+        raise ValueError("Invalid file type or is_uploaded flag.")
 
     ilp_path = ""
     solver = SolverFactory("gurobi")
@@ -455,9 +493,11 @@ def initial_loading(file, is_uploaded=True):
         TerminationCondition.infeasible,
         TerminationCondition.infeasibleOrUnbounded,
     ]:
-        if not os.path.exists(f"logs/ilps"):
-            os.makedirs(f"logs/ilps")
-        ilp_name = write_iis(model, "logs/ilps/" + model_name + ".ilp", solver="gurobi")
+        if not os.path.exists("logs/ilps"):
+            os.makedirs("logs/ilps")
+        ilp_name = iis.write_iis(
+            model, "logs/ilps/" + model_name + ".ilp", solver="gurobi"
+        )
         ilp_path = os.path.abspath("logs/ilps/" + model_name + ".ilp")
         print("model name:", model_name)
         print(f"ilp name: {ilp_name}, ilp path: {ilp_path}")
@@ -472,7 +512,7 @@ def initial_loading(file, is_uploaded=True):
     return models_dict, code
 
 
-def iis_translation(model_dict):
+def iis_translation(model_dict: Dict[str, Any]) -> str:
     """
     Generate human-readable translation of IIS (Irreducible Infeasible Subsystem).
 
@@ -517,7 +557,9 @@ def iis_translation(model_dict):
     return translation
 
 
-def update_model_representation(models_dict, model_name="model_1"):
+def update_model_representation(
+    models_dict: Dict[str, Any], model_name: str = "model_1"
+) -> None:
     """
     Update model representation dictionary by copying from specified model.
 
@@ -561,8 +603,10 @@ def update_model_representation(models_dict, model_name="model_1"):
                     model_representation["components"][component_type][component_name][
                         key
                     ] = value
+
     if "iis" in ref_model_dict:
         model_representation["iis"] = ref_model_dict["iis"]
+
     if "iis_description" in ref_model_dict:
         model_representation["iis_description"] = ref_model_dict["iis_description"]
 
@@ -576,7 +620,7 @@ def update_model_representation(models_dict, model_name="model_1"):
 #                 del models_dict['model_representation']["components"][component_type][component_name]["index_set"]
 
 
-def extract_component_descriptions(models_dict):
+def extract_component_descriptions(models_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract component descriptions from model representation dictionary.
 
@@ -630,7 +674,11 @@ def replace(src_code: str, old_code: str, new_code: str) -> str:
         #     print("Hola, mundo!")
     """
     pattern = r"( *){old_code}".format(old_code=old_code)
-    head_spaces = re.search(pattern, src_code, flags=re.DOTALL).group(1)
+    match = re.search(pattern, src_code, flags=re.DOTALL)
+    if match is None:
+        raise ValueError(f"Pattern '{old_code}' not found in source code")
+
+    head_spaces = match.group(1)
     new_code = "\n".join([head_spaces + line for line in new_code.split("\n")])
     rst = re.sub(pattern, new_code, src_code)
     return rst
@@ -669,10 +717,10 @@ def insert_code(src_code: str, new_lines: str, code_type: str) -> str:
     #     return replace(src_code, f"# OPTICHAT {code_type} CODE GOES HERE", new_lines)
     # else:
     #     raise ValueError(f"Invalid code type: {code_type}")
-    return replace(src_code, f"# YOUR CODE GOES HERE", new_lines)
+    return replace(src_code, "# YOUR CODE GOES HERE", new_lines)
 
 
-def run_with_exec(src_code: str):
+def run_with_exec(src_code: str) -> str:
     """
     Execute Python source code and capture both output and exceptions.
 
@@ -700,13 +748,13 @@ def run_with_exec(src_code: str):
         with redirect_stdout(output):
             exec(src_code, locals_dict, locals_dict)
         return output.getvalue()
-    except Exception as e:
+    except Exception:
         import traceback
 
         return output.getvalue() + "\n" + traceback.format_exc()
 
 
-def var_in_con(constraint_expr):
+def var_in_con(constraint_expr: Any) -> List[Any]:
     """
     Extract variables from a constraint expression.
 
@@ -729,7 +777,7 @@ def var_in_con(constraint_expr):
     return vars_list
 
 
-def param_in_con(constraint_expr):
+def param_in_con(constraint_expr: Any) -> List[Any]:
     """
     Extract parameters from a constraint expression.
 
@@ -752,7 +800,7 @@ def param_in_con(constraint_expr):
     return params_list
 
 
-def get_files_generator(folder_name):
+def get_files_generator(folder_name: str) -> Generator[str, None, None]:
     """
     Generate file paths for all Python files in a folder.
 
@@ -782,7 +830,7 @@ def get_files_generator(folder_name):
             yield os.path.join(folder_name, f)
 
 
-def get_files(folder_name):
+def get_files(folder_name: str) -> Tuple[List[str], List[str]]:
     """
     Get all Python files in a folder, separated by feasible/infeasible.
 
@@ -819,29 +867,11 @@ def get_files(folder_name):
                 infeasible_files.append(os.path.join(folder_name, f))
             else:
                 feasible_files.append(os.path.join(folder_name, f))
+
     return infeasible_files, feasible_files
 
 
-# def get_skipJSON_old(model_representation):
-#     """
-#     get the model description and description of every component
-#     skipJSON is the json that help skip the process of calling interpreter (interpret, illustrate, infer)
-#     """
-#     skipJSON = {"model description": model_representation["model description"],
-#                  "components": {"sets": {},
-#                                 "parameters": {},
-#                                 "variables": {},
-#                                 "constraints": {},
-#                                 "objective": {}}
-#                  }
-#     for component_type in ["sets", "parameters", "variables", "constraints", "objective"]:
-#         for component_name, component_dict in model_representation["components"][component_type].items():
-#             skipJSON["components"][component_type][component_name] = component_dict["description"]
-#
-#     return skipJSON
-
-
-def get_skipJSON(model_representation):
+def get_skipJSON(model_representation: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract model and component descriptions for quick loading.
 
@@ -878,7 +908,11 @@ def get_skipJSON(model_representation):
     return skipJSON
 
 
-def feed_skipJSON(skipJSON, models_dict, queried_model="model_1"):
+def feed_skipJSON(
+    skipJSON: Dict[str, Any],
+    models_dict: Dict[str, Any],
+    queried_model: str = "model_1",
+) -> Dict[str, Any]:
     """
     Load pre-computed descriptions into model dictionary.
 
@@ -912,4 +946,5 @@ def feed_skipJSON(skipJSON, models_dict, queried_model="model_1"):
             component_dict["description"] = skipJSON["components"][component_type][
                 component_name
             ]
+
     return models_dict
