@@ -20,7 +20,7 @@ from openai.types.shared_params import ResponseFormatJSONObject, ResponseFormatT
 
 from extractor import extract_component_descriptions, run_with_exec
 from internal_tools import (
-    components_retrival,
+    components_retrieval,
     evaluate_modification,
     feasibility_restoration,
     fnArgsDecoder,
@@ -1860,7 +1860,7 @@ class Engineer(Agent):
                         self.queried_components, self.queried_model, models_dict
                     )
                 elif fn_name == "components_retrival":
-                    fn_output = components_retrival(
+                    fn_output = components_retrieval(
                         self.queried_components, self.queried_model, models_dict
                     )
                 elif fn_name == "evaluate_modification":

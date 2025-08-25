@@ -943,7 +943,7 @@ or if they are particularly interested in these parameters, they must specify a 
     return feedback
 
 
-def components_retrival(
+def components_retrieval(
     queried_components: List[Dict[str, Any]],
     queried_model: str,
     models_dict: ModelsContainer,
