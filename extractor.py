@@ -6,7 +6,7 @@ import os
 import re
 import sys
 from contextlib import redirect_stdout
-from typing import Any, Dict, Generator, List, Set, Tuple
+from typing import Any, Dict, Generator, List, Set
 
 import pyomo.environ as pe
 from loguru import logger
@@ -19,11 +19,15 @@ from pyomo.opt import SolverFactory, TerminationCondition
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 # Import TypedDict definitions from optichat_types
+# OptiChat types
 from optichat_types import (
     ComponentsContainerSerializable,
+    FileClassificationResult,
     ModelDictSerializable,
     ModelDictWithPyomo,
+    ModelLoadingResult,
     ModelsContainer,
+    ParenthesesBalance,
 )
 
 
@@ -206,7 +210,7 @@ def find_lhs_params(
 
         return dict
 
-    def in_parentheses(index: int) -> Tuple[int, int]:
+    def in_parentheses(index: int) -> ParenthesesBalance:
         """
         Count parentheses balance at given index position.
 
@@ -228,7 +232,7 @@ def find_lhs_params(
             elif parts[i] == ")":
                 rbrace += 1
 
-        return lbrace, rbrace
+        return ParenthesesBalance(left_brace_count=lbrace, right_brace_count=rbrace)
 
     param_dict = locate_name(param_names, parts)
     var_dict = locate_name(var_names, parts)
@@ -532,7 +536,7 @@ def iis2json(ilp_path: str, model_dict: ModelDictWithPyomo) -> ModelDictWithPyom
 
 def initial_loading(
     file: UploadedFile | str, is_uploaded: bool = True
-) -> Tuple[ModelsContainer, str]:
+) -> ModelLoadingResult:
     """
     Load and initialize a Pyomo optimization model from file.
 
@@ -614,7 +618,7 @@ def initial_loading(
         "model_representation": {},
         "model_1": model_dict,
     }
-    return models_dict, code
+    return ModelLoadingResult(models_dict=models_dict, code=code)
 
 
 def iis_translation(model_dict: ModelDictWithPyomo) -> str:
@@ -928,7 +932,7 @@ def get_files_generator(folder_name: str) -> Generator[str, None, None]:
             yield os.path.join(folder_name, f)
 
 
-def get_files(folder_name: str) -> Tuple[List[str], List[str]]:
+def get_files(folder_name: str) -> FileClassificationResult:
     """
     Get all Python files in a folder, separated by feasible/infeasible.
 
@@ -966,7 +970,9 @@ def get_files(folder_name: str) -> Tuple[List[str], List[str]]:
             else:
                 feasible_files.append(os.path.join(folder_name, f))
 
-    return infeasible_files, feasible_files
+    return FileClassificationResult(
+        infeasible_files=infeasible_files, feasible_files=feasible_files
+    )
 
 
 def get_skipJSON(model_representation: ModelDictSerializable) -> Dict[str, Any]:

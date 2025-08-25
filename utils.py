@@ -1,6 +1,6 @@
 import json
 import time
-from typing import Any, List, Tuple
+from typing import Any, List, NamedTuple
 
 # Streamlit
 import streamlit as st
@@ -18,15 +18,34 @@ from openai.types.chat import (
 from agents import Coordinator, Engineer, Explainer, Interpreter
 
 # Import the TeamConversationMessage type
-from optichat_types import DecisionDict, ModelsContainer, TeamConversationMessage
+# OptiChat types
+from optichat_types import (
+    DecisionDict,
+    ModelsContainer,
+    TeamConversationMessage,
+    WorkflowResult,
+)
 from prompts import get_syntax_guidance_tool, get_tools
 
 _ = load_dotenv(find_dotenv())  # read local .env file
 
 
+class AgentsContainer(NamedTuple):
+    """Container for all OptiChat agent instances.
+
+    Groups together all the main agent types used in the OptiChat system
+    for multi-agent optimization analysis.
+    """
+
+    interpreter: Interpreter
+    explainer: Explainer
+    engineer: Engineer
+    coordinator: Coordinator
+
+
 def get_agents(
     fn_names: List[str], client: OpenAI, llm: str = "gpt-4-turbo-preview"
-) -> Tuple[Interpreter, Explainer, Engineer, Coordinator]:
+) -> AgentsContainer:
     """
     Initialize and configure all agent instances for the OptiChat system.
 
@@ -41,7 +60,7 @@ def get_agents(
 
     Returns
     -------
-    tuple of (Interpreter, Explainer, Engineer, Coordinator)
+    AgentsContainer
         Configured agent instances ready for optimization model analysis:
         - Interpreter: Analyzes and describes model components
         - Explainer: Provides detailed explanations of results
@@ -72,7 +91,12 @@ def get_agents(
         function_names=str(fn_names),
     )
     coordinator = Coordinator(client=client, agents=[explainer, engineer], llm=llm)
-    return interpreter, explainer, engineer, coordinator
+    return AgentsContainer(
+        interpreter=interpreter,
+        explainer=explainer,
+        engineer=engineer,
+        coordinator=coordinator,
+    )
 
 
 def save_team_conversation(
@@ -105,7 +129,7 @@ def OptiChat_workflow_exp(
     explainer: Explainer,
     messages: List[ChatCompletionMessageParam],
     models_dict: ModelsContainer,
-) -> Tuple[List[ChatCompletionMessageParam], List[TeamConversationMessage]]:
+) -> WorkflowResult:
     """
     Execute the main OptiChat workflow with multi-agent coordination.
 
@@ -126,7 +150,7 @@ def OptiChat_workflow_exp(
 
     Returns
     -------
-    tuple of (list, list)
+    WorkflowResult
         - Updated messages list with new assistant responses
         - Team conversation history with agent interactions
 
@@ -167,7 +191,9 @@ def OptiChat_workflow_exp(
                     {"role": "assistant", "content": "LLM failed"}
                 )
             )
-            return messages, team_conversation
+            return WorkflowResult(
+                messages=messages, team_conversation=team_conversation
+            )
 
         else:
             if decision["agent_name"] == "Engineer":
@@ -203,7 +229,9 @@ def OptiChat_workflow_exp(
                         {"role": "assistant", "content": explanation_response}
                     )
                 )
-                return messages, team_conversation
+                return WorkflowResult(
+                    messages=messages, team_conversation=team_conversation
+                )
 
             else:
                 raise ValueError(
@@ -214,4 +242,4 @@ def OptiChat_workflow_exp(
         rounds += 1
 
     # Return messages and team_conversation if max rounds reached
-    return messages, team_conversation
+    return WorkflowResult(messages=messages, team_conversation=team_conversation)

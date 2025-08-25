@@ -2,7 +2,7 @@ import copy
 import json
 import re
 import time
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional
 
 from loguru import logger
 from openai import Client, OpenAI, Stream
@@ -28,9 +28,17 @@ from internal_tools import (
     syntax_guidance,
 )
 from optichat_types import (
+    CodeGenerationResult,
+    CoordinationResult,
     DecisionDict,
+    EvaluatorResult,
+    ExecutionResult,
+    InterpretationResult,
     ModelDictWithPyomo,
     ModelsContainer,
+    ProgrammerResult,
+    ReportGenerationResult,
+    SyntaxGuidanceResult,
     TeamConversationMessage,
 )
 from prompts import get_prompts
@@ -759,7 +767,7 @@ class Interpreter(Agent):
 
     def generate_interpretation_exp(
         self, args, models_dict: ModelsContainer, code: str, model_name="model_1"
-    ) -> Tuple[ModelsContainer, int, bool]:
+    ) -> InterpretationResult:
         """
         Generate model interpretation with experimental settings and retry logic.
 
@@ -776,8 +784,8 @@ class Interpreter(Agent):
 
         Returns
         -------
-        Tuple[ModelsContainer, int, bool]
-            Updated models_dict, retry count remaining, and success flag.
+        InterpretationResult
+            Named tuple containing updated models_dict, retry count, and success flag.
             Returns None if all retries failed.
 
         Notes
@@ -827,7 +835,11 @@ class Interpreter(Agent):
             else:
                 # if all the components in all the component types have been described, then no need to call interpreter
                 task_complete = True
-                return models_dict, cnt, task_complete
+                return InterpretationResult(
+                    models_dict=models_dict,
+                    retry_count=cnt,
+                    task_complete=task_complete,
+                )
 
             cnt -= 1
             try:
@@ -887,9 +899,17 @@ class Interpreter(Agent):
                 logger.error(f"Invalid json format!\n{e}\n Try again ...")
 
         if cnt == 0:
-            return models_dict, cnt, task_complete
+            return InterpretationResult(
+                models_dict=models_dict,
+                retry_count=cnt,
+                task_complete=task_complete,
+            )
 
-        return models_dict, cnt, task_complete
+        return InterpretationResult(
+            models_dict=models_dict,
+            retry_count=cnt,
+            task_complete=task_complete,
+        )
 
     def generate_illustration_exp(
         self, args, model_representation: ModelDictWithPyomo
@@ -1070,7 +1090,7 @@ class Coordinator(Agent):
         team_conversation: List[TeamConversationMessage],
         agent_name: Any,
         task: Any,
-    ) -> Tuple[str, str | DecisionDict]:
+    ) -> CoordinationResult:
         """
         Generate coordination decisions for multi-agent task assignment.
 
@@ -1087,9 +1107,8 @@ class Coordinator(Agent):
 
         Returns
         -------
-        Tuple[str, str | DecisionDict]
-            Status of coordination ("In Progress", "Completed", "Terminated") and
-            either the final output string or the decision dictionary.
+        CoordinationResult
+            Named tuple containing status and result (output or decision dictionary).
 
         Notes
         -----
@@ -1135,7 +1154,7 @@ class Coordinator(Agent):
                                 "DONE, the user's query is answered, though the coordinator did not output 'DONE'."
                             )
 
-                        return status, OptiChat_out
+                        return CoordinationResult(status=status, result=OptiChat_out)
 
                     if (
                         "DONE" in decision_dict.values()
@@ -1159,7 +1178,7 @@ class Coordinator(Agent):
                 agent_name.text(decision_dict["agent_name"])
                 task.text(decision_dict["task"])
 
-                return status, decision_dict
+                return CoordinationResult(status=status, result=decision_dict)
 
             except Exception as e:
                 logger.error(e)
@@ -1182,7 +1201,7 @@ class Coordinator(Agent):
                         + "\n"
                     )
 
-                    return status, OptiChat_out
+                    return CoordinationResult(status=status, result=OptiChat_out)
 
         raise Exception("Unreachable code reached in generate_decision")
 
@@ -1526,7 +1545,7 @@ class Engineer(Agent):
         self.queried_model = None
         self.queried_function = None
 
-    def execute_code(self, revision_code: str, print_code: str) -> Tuple[str, str]:
+    def execute_code(self, revision_code: str, print_code: str) -> ExecutionResult:
         """
         Execute generated code and return results.
 
@@ -1539,8 +1558,8 @@ class Engineer(Agent):
 
         Returns
         -------
-        tuple of (str, str)
-            Complete source code and execution results.
+        ExecutionResult
+            Named tuple containing the complete source code and execution results.
 
         Notes
         -----
@@ -1567,7 +1586,7 @@ class Engineer(Agent):
         self.fake_team_conversation.append(
             {"agent_name": "Execution result", "agent_response": execution_rst}
         )
-        return src_code, execution_rst
+        return ExecutionResult(source_code=src_code, execution_output=execution_rst)
 
     def tool_call_exp(
         self,
@@ -1686,7 +1705,7 @@ class Engineer(Agent):
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
-    ) -> Tuple[str, str]:
+    ) -> SyntaxGuidanceResult:
         """
         Generate syntax guidance for model analysis with experimental settings.
 
@@ -1703,8 +1722,8 @@ class Engineer(Agent):
 
         Returns
         -------
-        tuple of (str, str) or (str, str)
-            Syntax guidance output and syntax mode ("single", "multiple", "none").
+        SyntaxGuidanceResult
+            Named tuple containing syntax guidance output and syntax mode.
 
         Notes
         -----
@@ -1751,7 +1770,9 @@ class Engineer(Agent):
                     models_dict,
                 )
                 self.syntax_success = True
-                return syntax_output, syntax_mode
+                return SyntaxGuidanceResult(
+                    syntax_output=syntax_output, syntax_mode=syntax_mode
+                )
 
             except Exception as e:
                 logger.error(str(e))
@@ -1760,7 +1781,9 @@ class Engineer(Agent):
                 # print(err)
                 if self.syntax_cnt == 0:
                     self.syntax_success = False
-                    return "LLM failed", "none"
+                    return SyntaxGuidanceResult(
+                        syntax_output="LLM failed", syntax_mode="none"
+                    )
 
         raise Exception("Should not reach here!")
 
@@ -1872,7 +1895,7 @@ class Engineer(Agent):
 
     def programmer_loop_exp(
         self, args: Any, pseudo_messages: List[ChatCompletionMessageParam]
-    ) -> Tuple[str, str, str] | Tuple[None, None, None]:
+    ) -> ProgrammerResult:
         """
         Loop to generate code solutions with retry logic.
 
@@ -1885,9 +1908,9 @@ class Engineer(Agent):
 
         Returns
         -------
-        tuple of (str, str, str) or (None, None, None)
-            Code output, revision code, and print code.
-            Returns None tuple if all retries failed.
+        ProgrammerResult
+            Named tuple containing code output, revision code, and print code.
+            Fields are None if all retries failed.
 
         Notes
         -----
@@ -1919,7 +1942,11 @@ class Engineer(Agent):
                 self.fake_team_conversation.append(
                     {"agent_name": "Programmer", "agent_response": code_output}
                 )
-                return code_output, revision_code, print_code
+                return ProgrammerResult(
+                    code_output=code_output,
+                    revision_code=revision_code,
+                    print_code=print_code,
+                )
 
             except AssertionError as e:
                 logger.error(e)
@@ -1928,13 +1955,15 @@ class Engineer(Agent):
                 # print(err)
                 if self.programmer_cnt == 0:
                     self.programmer_success = False
-                    return None, None, None
+                    return ProgrammerResult(
+                        code_output=None, revision_code=None, print_code=None
+                    )
 
         raise Exception("Should not reach here!")
 
     def evaluator_loop_exp(
         self, args: Any, pseudo_messages: List[ChatCompletionMessageParam]
-    ) -> Tuple[str, str, str] | Tuple[None, None, None]:
+    ) -> EvaluatorResult:
         """
         Loop to evaluate generated code with retry logic.
 
@@ -1947,9 +1976,9 @@ class Engineer(Agent):
 
         Returns
         -------
-        tuple of (str, str, str) or (None, None, None)
-            Evaluation output, decision (approve/reject), and comments.
-            Returns None tuple if all retries failed.
+        EvaluatorResult
+            Named tuple containing evaluation output, decision, and comments.
+            Fields are None if all retries failed.
 
         Notes
         -----
@@ -2000,7 +2029,11 @@ class Engineer(Agent):
                 self.fake_team_conversation.append(
                     {"agent_name": "Evaluator", "agent_response": evaluation_output}
                 )
-                return evaluation_output, decision, comment
+                return EvaluatorResult(
+                    evaluation_output=evaluation_output,
+                    decision=decision,
+                    comment=comment,
+                )
 
             except AssertionError as e:
                 logger.error(e)
@@ -2009,7 +2042,9 @@ class Engineer(Agent):
                 # print(err)
                 if self.evaluator_cnt == 0:
                     self.evaluator_success = False
-                    return None, None, None
+                    return EvaluatorResult(
+                        evaluation_output=None, decision=None, comment=None
+                    )
 
         raise Exception("Should not reach here!")
 
@@ -2019,7 +2054,7 @@ class Engineer(Agent):
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
-    ) -> Tuple[str, str, str]:
+    ) -> CodeGenerationResult:
         """
         Generate and evaluate code solutions through iterative development.
 
@@ -2036,9 +2071,8 @@ class Engineer(Agent):
 
         Returns
         -------
-        tuple of (str, str, str) or (None, None, None)
-            Code output, execution results, and evaluation output.
-            Returns None tuple if all retries failed.
+        CodeGenerationResult
+            Named tuple containing code output, execution results, and evaluation.
 
         Notes
         -----
@@ -2073,10 +2107,15 @@ class Engineer(Agent):
                 or revision_code is None
                 or print_code is None
             ):
-                return "LLM failed", "None", "None"
+                return CodeGenerationResult(
+                    code_output="LLM failed",
+                    execution_results="None",
+                    evaluation_output="None",
+                )
 
             # simply executing the code
-            complete_code, execution_rst = self.execute_code(revision_code, print_code)
+            execution_result = self.execute_code(revision_code, print_code)
+            execution_rst = execution_result.execution_output
 
             # until the evaluator evaluates the code in correct format
             evaluator_prompt = self.evaluator_prompt_template
@@ -2092,15 +2131,27 @@ class Engineer(Agent):
                 or decision is None
                 or comment is None
             ):
-                return code_output, execution_rst, "LLM failed"
+                return CodeGenerationResult(
+                    code_output=code_output,
+                    execution_results=execution_rst,
+                    evaluation_output="LLM failed",
+                )
 
             if decision == "accept":
-                return code_output, execution_rst, evaluation_output
+                return CodeGenerationResult(
+                    code_output=code_output,
+                    execution_results=execution_rst,
+                    evaluation_output=evaluation_output,
+                )
             else:
                 self.debug_times_left -= 1
                 if self.debug_times_left == 0:
-                    # return the last evaluation output though it is rejected by evaluator
-                    return code_output, execution_rst, evaluation_output
+                    # return the last evaluation output though it is rejected
+                    return CodeGenerationResult(
+                        code_output=code_output,
+                        execution_results=execution_rst,
+                        evaluation_output=evaluation_output,
+                    )
 
         raise Exception("Should not reach here!")
 
@@ -2110,7 +2161,7 @@ class Engineer(Agent):
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
-    ) -> Tuple[List[ChatCompletionMessageParam], List[TeamConversationMessage]]:
+    ) -> ReportGenerationResult:
         """
         Generate comprehensive technical report with experimental settings.
 
@@ -2142,9 +2193,11 @@ class Engineer(Agent):
             syntax_output, syntax_mode = "external_tools", "none"
             self.syntax_success = True
         else:
-            syntax_output, syntax_mode = self.generate_syntax_exp(
+            syntax_result = self.generate_syntax_exp(
                 args, messages, team_conversation, models_dict
             )
+            syntax_output = syntax_result.syntax_output
+            syntax_mode = syntax_result.syntax_mode
 
         if not self.syntax_success:
             team_conversation.append(
@@ -2235,7 +2288,9 @@ class Engineer(Agent):
                         )
                     )
 
-        return messages, team_conversation
+        return ReportGenerationResult(
+            messages=messages, team_conversation=team_conversation
+        )
 
     def generate_test_result_exp(
         self, args: Any, messages: List[ChatCompletionMessageParam], gt_a: str

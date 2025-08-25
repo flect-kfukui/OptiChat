@@ -14,7 +14,14 @@ from pyomo.core.expr.visitor import (
 from pyomo.opt import SolverFactory, TerminationCondition
 
 from extractor import pyomo2json
-from optichat_types import ModelDictWithPyomo, ModelsContainer
+
+# OptiChat types
+from optichat_types import (
+    IndexGuidanceResult,
+    ModelDictWithPyomo,
+    ModelsContainer,
+    SyntaxGuidanceInternalResult,
+)
 
 
 def fnArgsDecoder(queried_components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -180,7 +187,7 @@ def syntax_guidance(
     queried_components: List[str],
     queried_model: str,
     models_dict: ModelsContainer,
-) -> Tuple[str, str]:
+) -> SyntaxGuidanceInternalResult:
     """
     Generate syntax guidance for function calls based on model components.
 
@@ -199,7 +206,7 @@ def syntax_guidance(
 
     Returns
     -------
-    tuple of (str, str)
+    SyntaxGuidanceInternalResult
         - Syntax output string with detailed guidance
         - Syntax mode indicating index complexity ("single", "multiple", "all", "none")
 
@@ -220,13 +227,15 @@ def syntax_guidance(
         queried_function in FUNCTIONS
     ), f"Function {queried_function} is not recognized."
     if queried_function == "external_tools":
-        return "external_tools", "none"
+        return SyntaxGuidanceInternalResult(
+            syntax_output="external_tools", syntax_mode="none"
+        )
 
     model_dict = models_dict[queried_model]
     function_syntax = "function to call: " + queried_function + "\n\n"  #
     queried_model_syntax = "queried_model: " + queried_model + "\n\n"  #
 
-    def get_index_guidance(pattern: Tuple | int) -> Tuple[str, str]:
+    def get_index_guidance(pattern: Tuple | int) -> IndexGuidanceResult:
         """
         provide index guidance in terms of an indexed pattern,
         supplementary is 'evaluate_modification' or None
@@ -262,7 +271,7 @@ then return the tuple (9, "NY") instead of ('9', "NY")
 Descriptions like "for all the indexes", "from one to ten (but the size of dimension is 10)" are considered as "Not specified",
 which MUST use "__all__" instead of enumerating all indexes.
 """
-            return tuple_guidance, mode
+            return IndexGuidanceResult(guidance=tuple_guidance, mode=mode)
 
         elif isinstance(pattern, int) or isinstance(pattern, str):
             mode: str = "single"
@@ -276,7 +285,7 @@ If no specific index provided, return "__all__" in string
 Descriptions like "for all the indexes", "from one to ten (but the size of dimension is 10)" are considered as "Not specified",
 which MUST use "__all__" instead of enumerating all indexes.
 """
-            return primitive_guidance, mode
+            return IndexGuidanceResult(guidance=primitive_guidance, mode=mode)
         else:
             raise TypeError("pattern must be a tuple or an int or a str")
 
@@ -436,7 +445,9 @@ Make sure the delta value is consistent with the positivity/negativity of the pa
         syntax_mode = "all"
     else:
         syntax_mode = next(iter(syntax_mode))
-    return syntax_output, syntax_mode
+    return SyntaxGuidanceInternalResult(
+        syntax_output=syntax_output, syntax_mode=syntax_mode
+    )
 
 
 def feasibility_restoration(
