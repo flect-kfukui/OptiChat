@@ -1,14 +1,6 @@
-import copy
-import importlib
 import json
-import os
-import re
-import sys
 import time
-import typing
-
-# Gurobi
-import pyomo.environ as pe
+from typing import Any, Dict, List, Optional, Tuple
 
 # Streamlit
 import streamlit as st
@@ -16,22 +8,16 @@ from dotenv import find_dotenv, load_dotenv
 
 # GPT
 from openai import OpenAI
-from pyomo.contrib.iis import *
-from pyomo.core.expr.visitor import (
-    clone_expression,
-    identify_mutable_parameters,
-    replace_expressions,
-)
-from pyomo.opt import SolverFactory
-
-_ = load_dotenv(find_dotenv())  # read local .env file
-import tiktoken
 
 from agents import Coordinator, Engineer, Explainer, Interpreter
-from prompts import get_prompts, get_syntax_guidance_tool, get_tools
+from prompts import get_syntax_guidance_tool, get_tools
+
+_ = load_dotenv(find_dotenv())  # read local .env file
 
 
-def get_agents(fn_names, client, llm="gpt-4-turbo-preview"):
+def get_agents(
+    fn_names: List[str], client: OpenAI, llm: str = "gpt-4-turbo-preview"
+) -> Tuple[Interpreter, Explainer, Engineer, Coordinator]:
     """
     Initialize and configure all agent instances for the OptiChat system.
 
@@ -80,7 +66,9 @@ def get_agents(fn_names, client, llm="gpt-4-turbo-preview"):
     return interpreter, explainer, engineer, coordinator
 
 
-def save_team_conversation(team_conversation, filename):
+def save_team_conversation(
+    team_conversation: List[Dict[str, Any]], filename: str
+) -> None:
     """
     Save team conversation history to a file.
 
@@ -102,8 +90,13 @@ def save_team_conversation(team_conversation, filename):
 
 
 def OptiChat_workflow_exp(
-    args, coordinator, engineer, explainer, messages, models_dict
-):
+    args: Any,
+    coordinator: Coordinator,
+    engineer: Engineer,
+    explainer: Explainer,
+    messages: List[Dict[str, Any]],
+    models_dict: Dict[str, Any],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Execute the main OptiChat workflow with multi-agent coordination.
 
@@ -138,8 +131,8 @@ def OptiChat_workflow_exp(
 
     Tracks timing for different agent operations for performance analysis.
     """
-    team_conversation = []
-    rounds = 0
+    team_conversation: List[Dict[str, Any]] = []
+    rounds: int = 0
 
     # set the time in agents to 0
     coordinator.coordination_time = 0
@@ -151,35 +144,39 @@ def OptiChat_workflow_exp(
     # in current design, if coordinator has assigned the task once,
     # actually there will be no need to call llm to generate the decision again
     while rounds <= coordinator.max_rounds:
-        coordinator_start = time.time()
-        decision = coordinator.generate_decision_exp(args, messages, team_conversation)
-        coordinator_end = time.time()
+        coordinator_start: float = time.time()
+        decision: Optional[Dict[str, str]] = coordinator.generate_decision_exp(
+            args, messages, team_conversation
+        )
+        coordinator_end: float = time.time()
         coordinator.coordination_time += coordinator_end - coordinator_start
 
         if not decision:
-            print(f"coordinator failed to generate decision")
+            print("coordinator failed to generate decision")
             messages.append({"role": "assistant", "content": "LLM failed"})
             return messages, team_conversation
 
         else:
             if decision["agent_name"] == "Engineer":
-                # unlike explainer, engineer team has already updated the team_conversation and messages in fn below
-                # syntax time, programming time, evaluation time are also updated in the fn below
+                # unlike explainer, engineer team has already updated the
+                # team_conversation and messages in fn below
+                # syntax time, programming time, evaluation time are also
+                # updated in the fn below
                 messages, team_conversation = engineer.generate_report_exp(
                     args, messages, team_conversation, models_dict
                 )
 
             elif decision["agent_name"] == "Explainer":
-                explainer_start = time.time()
-                explanation = explainer.generate_explanation_exp(
+                explainer_start: float = time.time()
+                explanation: Any = explainer.generate_explanation_exp(
                     args, messages, team_conversation
                 )
                 if args.explanation_stream:
                     with st.chat_message("assistant"):
-                        explanation_response = st.write_stream(explanation)
+                        explanation_response: Any = st.write_stream(explanation)
                 else:
                     explanation_response = explanation
-                explainer_end = time.time()
+                explainer_end: float = time.time()
                 explainer.explanation_time += explainer_end - explainer_start
 
                 team_conversation.append(
@@ -190,7 +187,11 @@ def OptiChat_workflow_exp(
 
             else:
                 raise ValueError(
-                    f"Decision {decision} has an invalid agent name. Please choose from Engineer or Explainer."
+                    f"Decision {decision} has an invalid agent name. "
+                    f"Please choose from Engineer or Explainer."
                 )
 
         rounds += 1
+
+    # Return messages and team_conversation if max rounds reached
+    return messages, team_conversation
