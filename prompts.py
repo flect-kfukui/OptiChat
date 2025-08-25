@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Tuple
 
+from openai.types.chat import ChatCompletionToolParam
+
 FEASIBILITY_RESTORATION_FN_DESCRIPTION = """
 Use when: The model is infeasible and you need to find out the minimal change to specific [component name] for restoring feasibility.
 Example: “How much should we adjust the [component name] to make the model feasible”
@@ -482,245 +484,7 @@ def get_prompts(prompt: str) -> str | Dict[str, Any]:
         raise ValueError(f"Unknown prompt type: {prompt}")
 
 
-def old_get_fn_json(fn_name: str) -> Dict[str, Any]:
-    """
-    Generate legacy JSON schema for function definitions.
-
-    Parameters
-    ----------
-    fn_name : str
-        Name of the function to generate schema for.
-
-    Returns
-    -------
-    dict
-        JSON schema template for the specified function.
-
-    Notes
-    -----
-    Legacy function maintained for backward compatibility.
-    Use get_fn_json instead for new implementations.
-    """
-    fn_json_template = {
-        "type": "function",
-        "function": {
-            "name": "",
-            "description": "",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "queried_components": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "component_name": {"type": "string"},
-                                "component_indexes": {
-                                    "oneOf": [
-                                        {"type": "null"},
-                                        {"type": "string"},
-                                        {"type": "integer"},
-                                        {
-                                            "type": "array",
-                                            "items": {
-                                                "oneOf": [
-                                                    {"type": "string"},
-                                                    {"type": "integer"},
-                                                ]
-                                            },
-                                        },
-                                    ],
-                                },
-                            },
-                            "required": ["component_name", "component_indexes"],
-                        },
-                        "description": "List of dictionary of component_name and component_indexes that users are interested in.",
-                    },
-                    "queried_model": {
-                        "type": "string",
-                        "description": "'model_int' e.g. 'model_1'",
-                    },
-                },
-                "required": ["queried_components", "queried_model"],
-            },
-        },
-    }
-    fn_delta_json_template = {
-        "type": "function",
-        "function": {
-            "name": "",
-            "description": "",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "queried_components": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "operation": {
-                                    "type": "string",
-                                    "description": "modification operation e.g. * / + - = !",
-                                },
-                                "delta": {
-                                    "type": "number",
-                                    "description": "The extent of the modification",
-                                },
-                                "component_name": {"type": "string"},
-                                "component_indexes": {
-                                    "oneOf": [
-                                        {"type": "null"},
-                                        {"type": "string"},
-                                        {"type": "integer"},
-                                        {
-                                            "type": "array",
-                                            "items": {
-                                                "oneOf": [
-                                                    {"type": "string"},
-                                                    {"type": "integer"},
-                                                ]
-                                            },
-                                        },
-                                    ],
-                                },
-                            },
-                            "required": [
-                                "component_name",
-                                "component_indexes",
-                                "operation",
-                                "delta",
-                            ],
-                        },
-                        "description": "List of dictionary of component_name, component_indexes, modification type and modification extent that users are interested in.",
-                    },
-                    "queried_model": {
-                        "type": "string",
-                        "description": "'model_int' e.g. 'model_1'",
-                    },
-                },
-                "required": ["queried_components", "queried_model"],
-            },
-        },
-    }
-    # fn_json_template = \
-    #     {
-    #         "type": "function",
-    #         "function": {
-    #             "name": "",
-    #             "description": "",
-    #             "parameters": {
-    #                 "type": "object",
-    #                 "properties": {
-    #                     "queried_components": {
-    #                         "type": "array",
-    #                         "items": {
-    #                             "type": "object",
-    #                             "properties": {
-    #                                 "component_name": {"type": "string"},
-    #                                 "component_indexes": {
-    #                                     "oneOf": [
-    #                                         {"type": "null"},
-    #                                         {"type": "string"},
-    #                                         {"type": "integer"},
-    #                                         {
-    #                                             "type": "array",
-    #                                             "items": {
-    #                                                 "oneOf": [
-    #                                                     {"type": "string"},
-    #                                                     {"type": "integer"},
-    #                                                     {"type": "null"},
-    #                                                 ]
-    #                                             }
-    #                                         }
-    #                                     ],
-    #                                 },
-    #                             },
-    #                             "required": ["component_name", "component_indexes"]
-    #                         },
-    #                         "description": "List of dictionary of component_name and component_indexes that users are interested in."
-    #                     },
-    #                     "queried_model": {
-    #                         "type": "string",
-    #                         "description": "'model_int' e.g. 'model_1'"
-    #                     },
-    #                 },
-    #                 "required": ["queried_components", "queried_model"]
-    #             }
-    #         }
-    #     }
-    # fn_delta_json_template = \
-    #     {
-    #         "type": "function",
-    #         "function": {
-    #             "name": "",
-    #             "description": "",
-    #             "parameters": {
-    #                 "type": "object",
-    #                 "properties": {
-    #                     "queried_components": {
-    #                         "type": "array",
-    #                         "items": {
-    #                             "type": "object",
-    #                             "properties": {
-    #                                 "operation": {"type": "string",
-    #                                               "description": "modification operation e.g. * / + - = !"},
-    #                                 "delta": {"type": "number", "description": "The extent of the modification"},
-    #                                 "component_name": {"type": "string"},
-    #                                 "component_indexes": {
-    #                                     "oneOf": [
-    #                                         {"type": "null"},
-    #                                         {"type": "string"},
-    #                                         {"type": "integer"},
-    #                                         {
-    #                                             "type": "array",
-    #                                             "items": {
-    #                                                 "oneOf": [
-    #                                                     {"type": "string"},
-    #                                                     {"type": "integer"},
-    #                                                     {"type": "null"},
-    #                                                 ]
-    #                                             }
-    #                                         }
-    #                                     ],
-    #                                 },
-    #                             },
-    #                             "required": ["component_name", "component_indexes", "operation", "delta"]
-    #                         },
-    #                         "description": "List of dictionary of component_name, component_indexes, modification type and modification extent that users are interested in."
-    #                     },
-    #                     "queried_model": {
-    #                         "type": "string",
-    #                         "description": "'model_int' e.g. 'model_1'"
-    #                     },
-    #                 },
-    #                 "required": ["queried_components", "queried_model"]
-    #             }
-    #         }
-    #     }
-
-    fn_json_template["function"]["name"] = fn_name
-    fn_delta_json_template["function"]["name"] = fn_name
-    if fn_name == "feasibility_restoration":
-        fn_json_template["function"][
-            "description"
-        ] += FEASIBILITY_RESTORATION_FN_DESCRIPTION
-    elif fn_name == "sensitivity_analysis":
-        fn_json_template["function"][
-            "description"
-        ] += SENSITIVITY_ANALYSIS_FN_DESCRIPTION
-    elif fn_name == "components_retrieval":
-        fn_json_template["function"][
-            "description"
-        ] += COMPONENTS_RETRIEVAL_FN_DESCRIPTION
-    elif fn_name == "evaluate_modification":
-        fn_delta_json_template["function"][
-            "description"
-        ] += EVALUATE_MODIFICATION_FN_DESCRIPTION
-        return fn_delta_json_template
-    return fn_json_template
-
-
-def get_fn_json(fn_name: str, mode: str) -> Dict[str, Any]:
+def get_fn_json(fn_name: str, mode: str) -> ChatCompletionToolParam:
     """
     Generate JSON schema for function definitions based on mode.
 
@@ -733,7 +497,7 @@ def get_fn_json(fn_name: str, mode: str) -> Dict[str, Any]:
 
     Returns
     -------
-    dict
+    ChatCompletionToolParam
         JSON schema template for the specified function and mode.
 
     Notes
@@ -1199,11 +963,12 @@ def get_fn_json(fn_name: str, mode: str) -> Dict[str, Any]:
         fn_delta_json_template["function"][
             "description"
         ] += EVALUATE_MODIFICATION_FN_DESCRIPTION
-        return fn_delta_json_template
-    return fn_json_template
+        return fn_delta_json_template  # type: ignore
+
+    return fn_json_template  # type: ignore
 
 
-def get_syntax_guidance_fn_json() -> Dict[str, Any]:
+def get_syntax_guidance_fn_json() -> ChatCompletionToolParam:
     """
     Generate JSON schema for syntax guidance function definition.
 
@@ -1247,16 +1012,16 @@ def get_syntax_guidance_fn_json() -> Dict[str, Any]:
         },
     }
 
-    return fn_json_template
+    return fn_json_template  # type: ignore
 
 
 def get_tools(
     fn_names: List[str],
 ) -> Tuple[
-    List[Dict[str, Any]],
-    List[Dict[str, Any]],
-    List[Dict[str, Any]],
-    List[Dict[str, Any]],
+    List[ChatCompletionToolParam],
+    List[ChatCompletionToolParam],
+    List[ChatCompletionToolParam],
+    List[ChatCompletionToolParam],
     str,
 ]:
     """
@@ -1282,10 +1047,10 @@ def get_tools(
     based on component indexing requirements. Used to configure the
     Engineer agent's tool calling capabilities.
     """
-    multiple_tools = []
-    single_tools = []
-    none_tools = []
-    all_tools = []
+    multiple_tools: list[ChatCompletionToolParam] = []
+    single_tools: list[ChatCompletionToolParam] = []
+    none_tools: list[ChatCompletionToolParam] = []
+    all_tools: list[ChatCompletionToolParam] = []
     for fn_name in fn_names:
         if fn_name != "external_tools":
             multiple_tools.append(get_fn_json(fn_name, "multiple"))
@@ -1296,13 +1061,13 @@ def get_tools(
     return multiple_tools, single_tools, none_tools, all_tools, "auto"
 
 
-def get_syntax_guidance_tool() -> List[Dict[str, Any]]:
+def get_syntax_guidance_tool() -> list[ChatCompletionToolParam]:
     """
     Generate tool definition for syntax guidance functionality.
 
     Returns
     -------
-    list
+    list[ChatCompletionToolParam]
         List containing the syntax guidance function JSON schema.
 
     Notes

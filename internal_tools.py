@@ -21,7 +21,6 @@ from optichat_types import (
     ModelDictWithPyomo,
     ModelsContainer,
     QueriedComponent,
-    QueriedComponentWithModification,
     SyntaxGuidanceInternalResult,
 )
 
@@ -1106,7 +1105,7 @@ def components_retrieval(
 
 
 def evaluate_modification(
-    queried_components: list[QueriedComponentWithModification],
+    queried_components: list[QueriedComponent],
     queried_model: str,
     models_dict: ModelsContainer,
 ) -> str:
@@ -1115,7 +1114,7 @@ def evaluate_modification(
 
     Parameters
     ----------
-    queried_components : list[QueriedComponentWithModification]
+    queried_components : list[QueriedComponent]
         List of component dictionaries containing modification specifications.
         Each dict should have keys: 'component_name', 'component_indexes',
         'operation', and 'delta'.
@@ -1153,6 +1152,10 @@ def evaluate_modification(
     feedback = f"In the {queried_model}, the following modifications are made: \n"
     description = f"a model with the following changes to {queried_model}: \n"
     for component in queried_components:
+        # validate the component dictionary
+        assert "operation" in component
+        assert "delta" in component
+
         component_name = component["component_name"]
         component_indexes = component["component_indexes"]
         component_operation = component["operation"]

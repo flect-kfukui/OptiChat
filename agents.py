@@ -125,14 +125,20 @@ class Agent:
         self.kwargs = kwargs
         self.llm: str = llm
 
-        self.function_names: str | None = kwargs.get("function_names", None)
-        self.tools = kwargs.get("tools", None)
-        self.multiple_tools = kwargs.get("multiple_tools", None)
-        self.single_tools = kwargs.get("single_tools", None)
-        self.none_tools = kwargs.get("none_tools", None)
-        self.all_tools = kwargs.get("all_tools", None)
-        self.tool_choice = kwargs.get("tool_choice", None)
-        self.syntax_guidance_tool = kwargs.get("syntax_guidance_tool", None)
+        self.function_names: list[str] = kwargs.get("function_names", [])
+        self.tools: list[ChatCompletionToolParam] = kwargs.get("tools", [])
+        self.multiple_tools: list[ChatCompletionToolParam] = kwargs.get(
+            "multiple_tools", []
+        )
+        self.single_tools: list[ChatCompletionToolParam] = kwargs.get(
+            "single_tools", []
+        )
+        self.none_tools: list[ChatCompletionToolParam] = kwargs.get("none_tools", [])
+        self.all_tools: list[ChatCompletionToolParam] = kwargs.get("all_tools", [])
+        self.tool_choice: list[ChatCompletionToolParam] = kwargs.get("tool_choice", [])
+        self.syntax_guidance_tool: list[ChatCompletionToolParam] = kwargs.get(
+            "syntax_guidance_tool", []
+        )
 
         self.team_conversation_filename: str = "./logs/team_conversation.txt"
         self.chat_history_filename: str = "./logs/detailed_chat_history.txt"

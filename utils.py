@@ -88,7 +88,7 @@ def get_agents(
         all_tools=all_tools,
         tool_choice=tool_choice,
         syntax_guidance_tool=syntax_guidance_tool,
-        function_names=str(fn_names),
+        function_names=fn_names,
     )
     coordinator = Coordinator(client=client, agents=[explainer, engineer], llm=llm)
     return AgentsContainer(

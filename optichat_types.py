@@ -44,31 +44,6 @@ class DecisionDict(TypedDict):
 
 class QueriedComponent(TypedDict):
     """
-    Type definition for basic queried component dictionaries.
-
-    Used to specify individual components for analysis or modification.
-    The component_indexes can be None, a string, an integer, or a list/tuple
-    containing strings and integers for multi-dimensional indexing.
-
-    Attributes
-    ----------
-    component_name : str
-        The name of the component (e.g., "dem", "supply", "cost").
-    component_indexes : None | str | int | list[str | int] | tuple[str | int] | slice
-        The indexes to specify which component instances to target.
-        Can be None for scalar components, strings/integers for single indexes,
-        or lists/tuples for multi-dimensional components. slice(None) represents
-        all indexes (__all__).
-    """
-
-    component_name: str
-    component_indexes: (
-        None | str | int | List[Union[str, int]] | tuple[Union[str, int], ...] | slice
-    )
-
-
-class QueriedComponentWithModification(TypedDict):
-    """
     Type definition for queried component dictionaries with modification operations.
 
     Extends QueriedComponent to include operation and delta fields used by
@@ -91,8 +66,8 @@ class QueriedComponentWithModification(TypedDict):
     component_indexes: (
         None | str | int | List[Union[str, int]] | tuple[Union[str, int], ...] | slice
     )
-    operation: str
-    delta: Union[float, int]
+    operation: NotRequired[str]
+    delta: NotRequired[Union[float, int]]
 
 
 class ExecutionResult(NamedTuple):
