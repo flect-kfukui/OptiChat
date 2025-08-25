@@ -2,7 +2,7 @@ import copy
 import json
 import re
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from loguru import logger
 from openai import Client, OpenAI, Stream
@@ -27,7 +27,12 @@ from internal_tools import (
     sensitivity_analysis,
     syntax_guidance,
 )
-from optichat_types import ModelDictWithPyomo, ModelsContainer, TeamConversationMessage
+from optichat_types import (
+    DecisionDict,
+    ModelDictWithPyomo,
+    ModelsContainer,
+    TeamConversationMessage,
+)
 from prompts import get_prompts
 
 # import streamlit as st
@@ -1065,7 +1070,7 @@ class Coordinator(Agent):
         team_conversation: List[TeamConversationMessage],
         agent_name: Any,
         task: Any,
-    ) -> Tuple[str, str | Dict[str, Any]]:
+    ) -> Tuple[str, str | DecisionDict]:
         """
         Generate coordination decisions for multi-agent task assignment.
 
@@ -1082,11 +1087,9 @@ class Coordinator(Agent):
 
         Returns
         -------
-        Tuple[str, str | Dict[str, Any]]
+        Tuple[str, str | DecisionDict]
             Status of coordination ("In Progress", "Completed", "Terminated") and
-            either the final output string or the decision dictionary.
-
-        Notes
+            either the final output string or the decision dictionary.        Notes
         -----
         Core coordination logic that analyzes conversation history and assigns
         tasks to appropriate agents. Includes retry logic and completion detection.
@@ -1115,7 +1118,7 @@ class Coordinator(Agent):
                 self.print_in_and_out(coordinate_prompt, response)
                 logger.debug(f"Decision: {decision}")
 
-                decision_dict: Dict[str, Any] = json.loads(decision)
+                decision_dict: DecisionDict = json.loads(decision)
 
                 if team_conversation:
                     # safeguard to prevent the coordinator from calling the agent
@@ -1136,7 +1139,7 @@ class Coordinator(Agent):
                         "DONE" in decision_dict.values()
                         and team_conversation[-1]["agent_name"] == "Engineer"
                     ):
-                        decision_dict = {
+                        decision_dict: DecisionDict = {
                             "agent_name": "Explainer",
                             "task": "explain the technical feedback",
                         }
@@ -1146,7 +1149,7 @@ class Coordinator(Agent):
                     if "DONE" in decision_dict.values():
                         # sometimes user does not ask a question (e.g. saying 'thank you')
                         # and coordinator considers no query there and outputs 'DONE' directly
-                        decision_dict = {
+                        decision_dict: DecisionDict = {
                             "agent_name": "Explainer",
                             "task": "respond to the user",
                         }
@@ -1186,7 +1189,7 @@ class Coordinator(Agent):
         args: Any,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[TeamConversationMessage],
-    ) -> Dict[str, Any] | None:
+    ) -> DecisionDict | None:
         """
         Generate coordination decisions with experimental settings and simplified logic.
 
@@ -1221,7 +1224,7 @@ class Coordinator(Agent):
                 # in current design, if coordinator has assigned the task once,
                 # actually there will be no need to call llm to generate the decision again
                 if team_conversation:
-                    decision_dict: Dict[str, Any] = {
+                    decision_dict: DecisionDict = {
                         "agent_name": "Explainer",
                         "task": "explain the technical feedback",
                     }
@@ -1244,7 +1247,7 @@ class Coordinator(Agent):
 
                     logger.debug(f"Decision: {decision}")
 
-                    decision_dict = json.loads(decision)
+                    decision_dict: DecisionDict = json.loads(decision)
                     assert "agent_name" in decision_dict
                     assert decision_dict["agent_name"] in [
                         agent.name for agent in self.agents
@@ -1255,7 +1258,7 @@ class Coordinator(Agent):
                     # sometimes user does not ask a question (e.g. saying 'thank you')
                     # and coordinator considers no query there and outputs 'DONE' directly
                     if "DONE" in decision_dict.values():
-                        decision_dict = {
+                        decision_dict: DecisionDict = {
                             "agent_name": "Explainer",
                             "task": "respond to the user",
                         }

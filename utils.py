@@ -1,6 +1,6 @@
 import json
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Tuple
 
 # Streamlit
 import streamlit as st
@@ -18,7 +18,7 @@ from openai.types.chat import (
 from agents import Coordinator, Engineer, Explainer, Interpreter
 
 # Import the TeamConversationMessage type
-from optichat_types import ModelsContainer, TeamConversationMessage
+from optichat_types import DecisionDict, ModelsContainer, TeamConversationMessage
 from prompts import get_syntax_guidance_tool, get_tools
 
 _ = load_dotenv(find_dotenv())  # read local .env file
@@ -154,14 +154,14 @@ def OptiChat_workflow_exp(
     # actually there will be no need to call llm to generate the decision again
     while rounds <= coordinator.max_rounds:
         coordinator_start: float = time.time()
-        decision: Optional[Dict[str, str]] = coordinator.generate_decision_exp(
+        decision: DecisionDict | None = coordinator.generate_decision_exp(
             args, messages, team_conversation
         )
         coordinator_end: float = time.time()
         coordinator.coordination_time += coordinator_end - coordinator_start
 
         if not decision:
-            logger.debug("coordinator failed to generate decision")
+            logger.error("coordinator failed to generate decision")
             messages.append(
                 ChatCompletionAssistantMessageParam(
                     {"role": "assistant", "content": "LLM failed"}

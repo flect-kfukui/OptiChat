@@ -22,6 +22,25 @@ class TeamConversationMessage(TypedDict):
     agent_response: str
 
 
+class DecisionDict(TypedDict):
+    """
+    Type definition for coordinator decision dictionaries.
+
+    Used by the Coordinator agent to specify which agent should work next
+    and what task they should perform.
+
+    Attributes
+    ----------
+    agent_name : str
+        The name of the agent to call next (e.g., "Engineer", "Explainer").
+    task : str
+        The task for the agent to carry out. Can be "DONE" to indicate completion.
+    """
+
+    agent_name: str
+    task: str
+
+
 # TypedDict definitions for model dictionary structures
 #
 # These type definitions provide structure and documentation for the complex
