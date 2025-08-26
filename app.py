@@ -373,7 +373,7 @@ if prompt := st.chat_input("Enter your query here..."):
 
     logger.info(f"User prompt: {prompt}")
     updated_messages, team_conversation = OptiChat_workflow_exp(
-        args=st.session_state,
+        args=st.session_state,  # type: ignore
         coordinator=st.session_state.Coordinator,
         engineer=st.session_state.Engineer,
         explainer=st.session_state.Explainer,

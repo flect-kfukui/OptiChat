@@ -1,10 +1,64 @@
 """Type definitions for the OptiChat system."""
 
-from typing import Any, Dict, List, NamedTuple, Set, Union
+from typing import Any, Dict, List, NamedTuple, Protocol, Set, Union
 
 import pyomo.environ as pe
 from openai.types.chat import ChatCompletionMessageParam
 from typing_extensions import NotRequired, TypedDict
+
+
+class ExperimentArgs(Protocol):
+    """Protocol for experiment argument objects."""
+
+    @property
+    def temperature(self) -> float:
+        """LLM temperature setting."""
+        ...
+
+    @property
+    def json_mode(self) -> bool:
+        """Flag indicating if JSON mode is enabled."""
+        ...
+
+    @property
+    def illustration_stream(self) -> bool:
+        """
+        Flag  that controls whether the model illustration response is streamed
+        or returned as a complete response
+        """
+        ...
+
+    @property
+    def inference_stream(self) -> bool:
+        """
+        Flag that controls whether the model inference response is streamed
+        or returned as a complete response
+        """
+        ...
+
+    @property
+    def explanation_stream(self) -> bool:
+        """
+        Flag that controls whether the explainer agent's response is streamed
+        or returned as a complete response
+        """
+        ...
+
+    @property
+    def internal_experiment(self) -> bool:
+        """
+        Flag that controls whether the Engineer agent uses internal tools
+        or external code generation for technical analysis
+        """
+        ...
+
+    @property
+    def external_experiment(self) -> bool:
+        """
+        Flag that controls whether the Engineer agent bypasses internal tools
+        and uses external code generation directly for technical analysis
+        """
+        ...
 
 
 class TeamConversationMessage(TypedDict):

@@ -33,6 +33,7 @@ from optichat_types import (
     DecisionDict,
     EvaluatorResult,
     ExecutionResult,
+    ExperimentArgs,
     InterpretationResult,
     ModelDictWithPyomo,
     ModelsContainer,
@@ -769,14 +770,18 @@ class Interpreter(Agent):
         return stream
 
     def generate_interpretation_exp(
-        self, args, models_dict: ModelsContainer, code: str, model_name="model_1"
+        self,
+        args: ExperimentArgs,
+        models_dict: ModelsContainer,
+        code: str,
+        model_name="model_1",
     ) -> InterpretationResult:
         """
         Generate model interpretation with experimental settings and retry logic.
 
         Parameters
         ----------
-        args : object
+        args : ExperimentArgs
             Configuration arguments including temperature and streaming settings.
         models_dict : ModelsContainer
             Dictionary containing multiple model representations.
@@ -915,14 +920,14 @@ class Interpreter(Agent):
         )
 
     def generate_illustration_exp(
-        self, args, model_representation: ModelDictWithPyomo
+        self, args: ExperimentArgs, model_representation: ModelDictWithPyomo
     ) -> Stream[ChatCompletionChunk] | str:
         """
         Generate model illustration with experimental settings.
 
         Parameters
         ----------
-        args : object
+        args : ExperimentArgs
             Configuration arguments with temperature and streaming settings.
         model_representation : ModelDictWithPyomo
             Complete model representation with component descriptions.
@@ -954,14 +959,14 @@ class Interpreter(Agent):
         return stream_or_completion
 
     def generate_inference_exp(
-        self, args, model_representation: ModelDictWithPyomo
+        self, args: ExperimentArgs, model_representation: ModelDictWithPyomo
     ) -> Stream[ChatCompletionChunk] | str:
         """
         Generate inference about model infeasibility with experimental settings.
 
         Parameters
         ----------
-        args : object
+        args : ExperimentArgs
             Configuration arguments with temperature and streaming settings.
         model_representation : ModelDictWithPyomo
             Complete model representation containing IIS information.
@@ -1210,7 +1215,7 @@ class Coordinator(Agent):
 
     def generate_decision_exp(
         self,
-        args: Any,
+        args: ExperimentArgs,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[TeamConversationMessage],
     ) -> DecisionDict | None:
@@ -1219,7 +1224,7 @@ class Coordinator(Agent):
 
         Parameters
         ----------
-        args : object
+        args : ExperimentArgs
             Configuration arguments including temperature, json_mode settings.
         messages : list of dict
             Original message history from the conversation.
@@ -1346,7 +1351,7 @@ class Explainer(Agent):
 
     def generate_explanation_exp(
         self,
-        args: Any,
+        args: ExperimentArgs,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[TeamConversationMessage],
     ) -> Stream[ChatCompletionChunk] | str:
@@ -1355,7 +1360,7 @@ class Explainer(Agent):
 
         Parameters
         ----------
-        args : object
+        args : ExperimentArgs
             Configuration arguments including temperature and streaming settings.
         messages : list[ChatCompletionMessageParam]
             Original message history from the conversation.
@@ -1702,7 +1707,7 @@ class Engineer(Agent):
 
     def generate_syntax_exp(
         self,
-        args: Any,
+        args: ExperimentArgs,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
@@ -1712,7 +1717,7 @@ class Engineer(Agent):
 
         Parameters
         ----------
-        args : object
+        args : ExperimentArgs
             Configuration arguments with experimental settings.
         messages : list[ChatCompletionMessageParam]
             Conversation message history.
@@ -1793,7 +1798,7 @@ class Engineer(Agent):
 
     def generate_feedback_exp(
         self,
-        args: Any,
+        args: ExperimentArgs,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
@@ -1804,7 +1809,7 @@ class Engineer(Agent):
 
         Parameters
         ----------
-        args : object
+        args : ExperimentArgs
             Configuration arguments with experimental settings.
         messages : list[ChatCompletionMessageParam]
             Conversation message history.
@@ -1901,14 +1906,14 @@ class Engineer(Agent):
         raise Exception("Should not reach here!")
 
     def programmer_loop_exp(
-        self, args: Any, pseudo_messages: List[ChatCompletionMessageParam]
+        self, args: ExperimentArgs, pseudo_messages: List[ChatCompletionMessageParam]
     ) -> ProgrammerResult:
         """
         Loop to generate code solutions with retry logic.
 
         Parameters
         ----------
-        args : object
+        args : ExperimentArgs
             Configuration arguments with experimental settings.
         pseudo_messages : list[ChatCompletionMessageParam]
             Message history including problem context.
@@ -1969,14 +1974,14 @@ class Engineer(Agent):
         raise Exception("Should not reach here!")
 
     def evaluator_loop_exp(
-        self, args: Any, pseudo_messages: List[ChatCompletionMessageParam]
+        self, args: ExperimentArgs, pseudo_messages: List[ChatCompletionMessageParam]
     ) -> EvaluatorResult:
         """
         Loop to evaluate generated code with retry logic.
 
         Parameters
         ----------
-        args : object
+        args : ExperimentArgs
             Configuration arguments with experimental settings.
         pseudo_messages : list[ChatCompletioinnMessageParam]
             Message history including code context.
@@ -2057,7 +2062,7 @@ class Engineer(Agent):
 
     def generate_code_exp(
         self,
-        args: Any,
+        args: ExperimentArgs,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
@@ -2164,7 +2169,7 @@ class Engineer(Agent):
 
     def generate_report_exp(
         self,
-        args: Any,
+        args: ExperimentArgs,
         messages: List[ChatCompletionMessageParam],
         team_conversation: List[TeamConversationMessage],
         models_dict: ModelsContainer,
@@ -2303,14 +2308,17 @@ class Engineer(Agent):
         )
 
     def generate_test_result_exp(
-        self, args: Any, messages: List[ChatCompletionMessageParam], gt_a: str
+        self,
+        args: ExperimentArgs,
+        messages: List[ChatCompletionMessageParam],
+        gt_a: str,
     ) -> str:
         """
         Generate test results by comparing with ground truth answer.
 
         Parameters
         ----------
-        args : object
+        args : ExperimentArgs
             Configuration arguments including temperature settings.
         messages : list[ChatCompletionMessageParam]
             Conversation message history.

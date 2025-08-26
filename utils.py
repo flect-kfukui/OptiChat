@@ -21,6 +21,7 @@ from agents import Coordinator, Engineer, Explainer, Interpreter
 # OptiChat types
 from optichat_types import (
     DecisionDict,
+    ExperimentArgs,
     ModelsContainer,
     TeamConversationMessage,
     WorkflowResult,
@@ -124,7 +125,7 @@ def save_team_conversation(
 
 @logger.catch
 def OptiChat_workflow_exp(
-    args: Any,
+    args: ExperimentArgs,
     coordinator: Coordinator,
     engineer: Engineer,
     explainer: Explainer,
@@ -136,7 +137,7 @@ def OptiChat_workflow_exp(
 
     Parameters
     ----------
-    args : object
+    args : ExperimentArgs
         Configuration object containing experiment settings and parameters.
     coordinator : Coordinator
         Coordinator agent instance for orchestrating multi-agent collaboration.
