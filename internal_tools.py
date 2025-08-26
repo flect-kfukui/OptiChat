@@ -1,6 +1,6 @@
 import copy
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import pyomo.environ as pe
 from loguru import logger
@@ -71,73 +71,7 @@ def fnArgsDecoder(queried_components: list[QueriedComponent]) -> list[QueriedCom
     return queried_components
 
 
-def old_fnArgsDecoder(queried_components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Legacy function for decoding function arguments with expanded syntax support.
-
-    Parameters
-    ----------
-    queried_components : list of dict
-        List of component dictionaries containing query parameters to be decoded.
-
-    Returns
-    -------
-    list of dict
-        Processed list of component dictionaries with decoded values.
-        Supports more complex string patterns including slice expressions.
-
-    Notes
-    -----
-    This function is deprecated in favor of fnArgsDecoder. It provides backward
-    compatibility for more complex slice notations and eval-based conversions.
-    """
-    for queried_component in queried_components:
-        for key, value in queried_component.items():
-            if isinstance(value, str):
-                if value.lower() in [
-                    "none",
-                    "null",
-                    "slice(none)",
-                    "slice(null)",
-                    "slice('none')",
-                ]:
-                    queried_component[key] = (
-                        None if "slice" not in value else slice(None)
-                    )
-                elif "slice(None)" in value and value != "slice(None)":
-                    queried_component[key] = eval(value)
-                # if value in ["None", "null"]:
-                #     queried_component[key] = None
-                # elif value in ["slice(None)", "slice(null)", "slice('None')"]:
-                #     queried_component[key] = slice(None)
-                # elif value != 'slice(None)' and 'slice(None)' in value:
-                #     # in case that llm should have returned a tuple ('slice(None)', 'slice(None)', "specific_index")
-                #     # but returned a string "('slice(None)', 'slice(None)', "specific_index")"
-                #     queried_component[key] = eval(value)
-
-            elif isinstance(value, tuple):
-                value = list(value)
-                for i, value_i in enumerate(value):
-                    if value_i in ["None", "null"]:
-                        value[i] = None
-                    elif value_i in ["slice(None)", "slice(null)", "slice('None')"]:
-                        value[i] = slice(None)
-                queried_component[key] = tuple(value)
-
-            elif isinstance(value, list):
-                for i, value_i in enumerate(value):
-                    if value_i in ["None", "null"]:
-                        value[i] = None
-                    elif value_i in ["slice(None)", "slice(null)", "slice('None')"]:
-                        value[i] = slice(None)
-                    else:
-                        value[i] = value_i
-                queried_component[key] = tuple(value)
-
-    return queried_components
-
-
-def get_component_type(name: str, m: ModelDictWithPyomo) -> Optional[str]:
+def get_component_type(name: str, m: ModelDictWithPyomo) -> str:
     """
     Determine the component type of a given component name in a model dictionary.
 
@@ -150,12 +84,18 @@ def get_component_type(name: str, m: ModelDictWithPyomo) -> Optional[str]:
 
     Returns
     -------
-    str or None
+    str
         Component type ("parameters", "variables", "sets", "constraints", "objective")
         if found, None otherwise.
     """
     TYPES = ["parameters", "variables", "sets", "constraints", "objective"]
-    return next((c_type for c_type in TYPES if name in m["components"][c_type]), None)
+    component_type: str | None = next(
+        (c_type for c_type in TYPES if name in m["components"][c_type]), None
+    )
+    if component_type is None:
+        raise ValueError(f"Component {name} not found in the model.")
+
+    return component_type
 
 
 def get_new_model_name(queried_model: str) -> str:
