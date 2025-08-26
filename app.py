@@ -71,9 +71,19 @@ gpt_model = st.sidebar.selectbox(
         "gpt-4",
         "gpt-3.5-turbo",
         "gpt-3.5-turbo-16k",
+        "gpt-4o",
+        "o3",
+        "o3-mini",
+        "o4-mini",
+        "gpt-5-mini",  # NOTE: temperature should be 1
     ],
 )
 st.session_state["gpt_model"] = gpt_model
+
+# NOTE: gpt-5-mini requires temperature=1
+if gpt_model == "gpt-5-mini":
+    st.session_state["temperature"] = 1.0
+
 # Set a default model
 if "gpt_model" not in st.session_state:
     st.session_state["gpt_model"] = "gpt-4-turbo-preview"
@@ -381,7 +391,7 @@ if prompt := st.chat_input("Enter your query here..."):
         models_dict=st.session_state.models_dict,
     )
     logger.debug(f"Team conversation: {team_conversation}")
-    logger.info(f"OptiChat_out: {updated_messages}")
+    # logger.info(f"OptiChat_out: {updated_messages}")
     st.session_state.messages = updated_messages
 
     # # update detailed chat history
