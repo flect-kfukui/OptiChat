@@ -75,6 +75,122 @@ OptiChat employs a sophisticated multi-agent system where four specialized AI ag
   - Prevents infinite loops and ensures efficient query resolution
 - **When Active**: For every user query to make routing decisions
 
+## Technical Feedback by Agent
+
+Each agent in the OptiChat system provides specific types of technical feedback through their specialized methods:
+
+### 1. Interpreter Agent Technical Feedback
+
+The Interpreter agent provides model understanding and structural analysis feedback:
+
+**`generate_interpretation_exp()` returns:**
+
+- **Component descriptions**: Natural language descriptions of model sets, parameters, variables, constraints, and objectives
+- **Model structure analysis**: JSON-formatted component interpretations integrated into the model dictionary
+- **Success/failure status**: Retry count and task completion flags for robustness
+
+**`generate_illustration_exp()` returns:**
+
+- **Model overview**: User-friendly explanation of the optimization model's purpose and structure
+- **Component relationships**: How different model components interact and contribute to the optimization goal
+
+**`generate_inference_exp()` returns:**
+
+- **Infeasibility analysis**: Detailed explanation of why a model is infeasible or unbounded
+- **Diagnostic insights**: Potential causes and suggested fixes for problematic models
+
+### 2. Engineer Agent Technical Feedback
+
+The Engineer agent provides the most comprehensive technical analysis through multiple specialized methods:
+
+**`generate_report_exp()` orchestrates technical workflows and returns:**
+
+- **Complete technical analysis**: Coordinates syntax analysis, tool execution, and code generation
+- **Updated conversation history**: Both user messages and detailed team conversation with technical results
+
+**`generate_feedback_exp()` executes internal tools and returns:**
+
+- **Tool execution results**: Direct output from internal analysis functions
+- **Error handling**: Detailed error messages with problematic components when tools fail
+- **Retry logic**: Automated recovery mechanisms for robust analysis
+
+**Internal Tools Technical Feedback:**
+
+- **`feasibility_restoration()` provides:**
+
+  - Parameter changes needed to restore feasibility
+  - New model status after modifications
+  - Slack variable analysis showing minimal changes required
+  - Recommendations for feasibility improvement strategies
+
+- **`sensitivity_analysis()` provides:**
+
+  - Impact of parameter changes on optimal objective value
+  - Dual value calculations and economic interpretations
+  - Parameter sensitivity coefficients
+  - Recommendations for parameter importance analysis
+
+- **`components_retrieval()` provides:**
+
+  - Current values of parameters, variables, and sets
+  - Constraint expressions and objective function details
+  - Component descriptions with physical meanings
+  - Index-specific component information
+
+- **`evaluate_modification()` provides:**
+  - Description of specific modifications made to the model
+  - New model status and objective value after changes
+  - Comparison with original model performance
+  - Analysis of modification impacts and trade-offs
+
+**`generate_code_exp()` provides:**
+
+- **Generated Python code**: Custom analysis code for complex queries
+- **Execution results**: Output from running generated code with error handling
+- **Code evaluation**: Assessment of code quality and results validation
+
+### 3. Explainer Agent Technical Feedback
+
+The Explainer agent synthesizes technical information into accessible explanations:
+
+**`generate_explanation_exp()` returns:**
+
+- **User-friendly explanations**: Technical results translated into accessible language
+- **Synthesized analysis**: Combines technical feedback from Engineer and other agents
+- **Educational content**: Explanations of optimization concepts and results interpretation
+- **Contextual responses**: Tailored to user's technical background and query complexity
+
+### 4. Coordinator Agent Technical Feedback
+
+The Coordinator agent provides workflow management and routing decisions:
+
+**`generate_decision_exp()` returns:**
+
+- **Routing decisions**: Which agent should handle specific queries (`DecisionDict`)
+- **Task assignments**: Specific tasks for selected agents (e.g., "explain the technical feedback")
+- **Workflow status**: Progress tracking through multi-agent collaboration
+- **Process coordination**: Prevention of infinite loops and efficient query resolution
+
+### Technical Feedback Structure
+
+All technical feedback is captured in `TeamConversationMessage` objects with the following structure:
+
+```python
+{
+    "agent_name": str,     # Name of the responding agent
+    "agent_response": str  # The technical feedback content
+}
+```
+
+The feedback flows through the system in a coordinated manner:
+
+1. **Engineer** generates detailed technical analysis using internal tools or code generation
+2. **Coordinator** makes routing decisions and manages workflow progression
+3. **Explainer** synthesizes technical feedback into user-friendly responses
+4. **Interpreter** provides model understanding and structural analysis
+
+This multi-agent architecture ensures users receive both comprehensive technical analysis and accessible explanations tailored to their specific needs and technical background.
+
 ## Sequence Diagram
 
 ```mermaid
@@ -321,7 +437,7 @@ The application maintains persistent state across user interactions:
 
 ## Key Design Patterns
 
-### Multi-Agent Architecture
+### Multi-Agent Coordination
 
 The application implements a coordinated multi-agent system where:
 
