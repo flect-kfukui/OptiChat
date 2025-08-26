@@ -1691,9 +1691,6 @@ class Engineer(Agent):
                 fn_call = completion.choices[0].message.tool_calls[0].function
                 fn_name = fn_call.name
                 fn_args = fn_call.arguments
-                logger.debug(
-                    f"function name = {fn_name}, function arguments = {fn_args}"
-                )
             else:
                 raise Exception(
                     "No tool call executed by Operator, perhaps because of the 'auto' tool choice!"
@@ -1762,6 +1759,9 @@ class Engineer(Agent):
                 )
                 syntax_end = time.time()
                 self.syntax_time += syntax_end - syntax_start
+                logger.debug(
+                    f"function name = {fn_name}, function arguments = {fn_args}"
+                )
 
                 self.queried_function = json.loads(fn_args).get("queried_function")
                 self.queried_components = json.loads(fn_args).get("queried_components")
@@ -1844,6 +1844,9 @@ class Engineer(Agent):
                 )
                 syntax_end: float = time.time()
                 self.syntax_time += syntax_end - syntax_start
+                logger.debug(
+                    f"function name = {fn_name}, function arguments = {fn_args}"
+                )
 
                 self.queried_function = fn_name
                 self.queried_model = json.loads(fn_args).get("queried_model")
@@ -2202,6 +2205,9 @@ class Engineer(Agent):
             )
             syntax_output = syntax_result.syntax_output
             syntax_mode = syntax_result.syntax_mode
+            logger.debug(
+                f"syntax_output = {syntax_output}, syntax_mode = {syntax_mode}"
+            )
 
         if not self.syntax_success:
             team_conversation.append(

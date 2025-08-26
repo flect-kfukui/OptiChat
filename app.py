@@ -380,6 +380,7 @@ if prompt := st.chat_input("Enter your query here..."):
         messages=st.session_state.messages,
         models_dict=st.session_state.models_dict,
     )
+    logger.debug(f"Team conversation: {team_conversation}")
     logger.info(f"OptiChat_out: {updated_messages}")
     st.session_state.messages = updated_messages
 
