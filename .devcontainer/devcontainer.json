@@ -1,0 +1,59 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/python
+{
+	"name": "Python 3",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
+		"ghcr.io/devcontainers/features/git-lfs:1": {},
+		"ghcr.io/prulloac/devcontainer-features/ollama:1": {},
+		"ghcr.io/va-h/devcontainers-features/uv:1": {}
+	},
+
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	// "features": {},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"njpwerner.autodocstring",
+				"streetsidesoftware.code-spell-checker",
+				"amazonwebservices.aws-toolkit-vscode",
+				"Boto3typed.boto3-ide",
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"shd101wyy.markdown-preview-enhanced",
+				"hediet.vscode-drawio",
+				"Arjun.swagger-viewer",
+				"DavidAnson.vscode-markdownlint",
+				"esbenp.prettier-vscode",
+				"ms-python.black-formatter",
+				"ms-python.flake8",
+				"GitHub.vscode-github-actions",
+				"ms-python.isort",
+				"mhutchie.git-graph",
+				"Gruntfuggly.todo-tree",
+				"mosapride.zenkaku",
+				"tamasfe.even-better-toml",
+				"eamodio.gitlens",
+				"ryanluker.vscode-coverage-gutters",
+				"ms-toolsai.jupyter",
+				"mechatroner.rainbow-csv"
+			]
+		}
+	},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Use 'postCreateCommand' to run commands after the container is created.
+	// "postCreateCommand": "pip3 install --user -r requirements.txt",
+	"postCreateCommand": ".devcontainer/postCreateCommand.sh",
+	"postStartCommand": ".devcontainer/postStartCommand.sh"
+
+	// Configure tool-specific properties.
+	// "customizations": {},
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+}

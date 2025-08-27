@@ -1,41 +1,89 @@
-import streamlit as st
-from openai import OpenAI
-import os
-from io import StringIO
-import time
-import tempfile
-import io
-from extractor import initial_loading
-from extractor import update_model_representation, get_skipJSON, feed_skipJSON
-from utils import get_agents
-from utils import OptiChat_workflow_exp
-from pyomo.opt import TerminationCondition
 import json
+import os
+import time
+
+import streamlit as st
+from dotenv import load_dotenv
+from loguru import logger
+from openai import OpenAI
+from pyomo.opt import TerminationCondition
+
+from extractor import (
+    feed_skipJSON,
+    get_skipJSON,
+    initial_loading,
+    update_model_representation,
+)
+from optichat_types import ModelsContainer
+from utils import OptiChat_workflow_exp, get_agents
 
 
 def string_generator(long_string, chunk_size=50):
+    """
+    Generate string chunks with time delays for streaming output.
+
+    Parameters
+    ----------
+    long_string : str
+        The complete string to be streamed.
+    chunk_size : int, default=50
+        Size of each chunk to yield.
+
+    Yields
+    ------
+    str
+        String chunks of specified size with 0.1 second delays.
+
+    Notes
+    -----
+    Used for creating streaming text effects in the Streamlit interface
+    to provide better user experience when displaying model descriptions.
+    """
     for i in range(0, len(long_string), chunk_size):
-        yield long_string[i:i+chunk_size]
+        yield long_string[i : i + chunk_size]
         time.sleep(0.1)  # Optionally add a small delay between each yield
 
 
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-st.session_state['client'] = client
-st.session_state['temperature'] = 0.1  # by default
-st.session_state['json_mode'] = True  # by default
-st.session_state['illustration_stream'] = True  # by default
-st.session_state['inference_stream'] = True  # by default
-st.session_state['explanation_stream'] = True  # by default
-st.session_state['internal_experiment'] = False  # by default
-st.session_state['external_experiment'] = False  # by default
+load_dotenv(".env")
 
-st.set_page_config(layout='wide')
+
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+st.session_state["client"] = client
+st.session_state["temperature"] = 0.1  # by default
+st.session_state["json_mode"] = True  # by default
+st.session_state["illustration_stream"] = True  # by default
+st.session_state["inference_stream"] = True  # by default
+st.session_state["explanation_stream"] = True  # by default
+st.session_state["internal_experiment"] = False  # by default
+st.session_state["external_experiment"] = False  # by default
+
+st.set_page_config(layout="wide")
 
 st.title("OptiChat: Talk to your Optimization Model")
 
 
-gpt_model = st.sidebar.selectbox(label="GPT-Model", options=["gpt-4-turbo-preview", "gpt-4-turbo", "gpt-4-1106-preview", "gpt-4", "gpt-3.5-turbo", "gpt-3.5-turbo-16k"], )
+gpt_model = st.sidebar.selectbox(
+    label="GPT-Model",
+    options=[
+        "gpt-4-turbo-preview",
+        "gpt-4-turbo",
+        "gpt-4-1106-preview",
+        "gpt-4",
+        "gpt-3.5-turbo",
+        "gpt-3.5-turbo-16k",
+        "gpt-4o",
+        "o3",
+        "o3-mini",
+        "o4-mini",
+        "gpt-5-mini",  # NOTE: temperature should be 1
+    ],
+)
 st.session_state["gpt_model"] = gpt_model
+
+# NOTE: gpt-5-mini requires temperature=1
+if gpt_model == "gpt-5-mini":
+    st.session_state["temperature"] = 1.0
+
 # Set a default model
 if "gpt_model" not in st.session_state:
     st.session_state["gpt_model"] = "gpt-4-turbo-preview"
@@ -47,20 +95,22 @@ if "code" not in st.session_state:
 st.sidebar.subheader("Load Pyomo File")
 uploaded_file = st.sidebar.file_uploader("Upload Model", type=["py"])
 uploaded_json = st.sidebar.file_uploader("Upload JSON", type=["json"])
-st.session_state['py_path'] = None
-st.session_state['fn_names'] = ["feasibility_restoration",
-                                "sensitivity_analysis",
-                                "components_retrival",
-                                "evaluate_modification",
-                                "external_tools"]
+st.session_state["py_path"] = None
+st.session_state["fn_names"] = [
+    "feasibility_restoration",
+    "sensitivity_analysis",
+    "components_retrieval",
+    "evaluate_modification",
+    "external_tools",
+]
 
-interpreter, explainer, engineer, coordinator = get_agents(st.session_state.fn_names,
-                                                           st.session_state.client,
-                                                           st.session_state.gpt_model)
-st.session_state['Interpreter'] = interpreter
-st.session_state['Explainer'] = explainer
-st.session_state['Engineer'] = engineer
-st.session_state['Coordinator'] = coordinator
+interpreter, explainer, engineer, coordinator = get_agents(
+    st.session_state.fn_names, st.session_state.client, st.session_state.gpt_model
+)
+st.session_state["Interpreter"] = interpreter
+st.session_state["Explainer"] = explainer
+st.session_state["Engineer"] = engineer
+st.session_state["Coordinator"] = coordinator
 
 
 if not st.session_state.get("messages"):
@@ -77,52 +127,98 @@ if not st.session_state.get("detailed_chat_history"):
 
 
 def process():
+    """
+    Process uploaded Pyomo model file and initialize the OptiChat system.
+
+    This function handles the complete workflow for processing an uploaded
+    optimization model including:
+    - Loading and parsing the Pyomo model
+    - Generating model interpretation and illustration
+    - Handling infeasible models with inference generation
+    - Updating the session state and UI
+
+    Returns
+    -------
+    None
+        Updates Streamlit session state with model data and conversation history.
+
+    Notes
+    -----
+    Requires an uploaded file in the session state. Displays error if no file
+    is provided. Updates the chat interface with model interpretation results.
+    """
     if uploaded_file is None:
         st.error("Please upload your model first.")
         return
 
+    models_dict: ModelsContainer
+    code: str
     models_dict, code = initial_loading(uploaded_file)
 
     with st.chat_message("user"):
         st.markdown("I have uploaded a Pyomo model.")
-    st.session_state.messages.append({"role": "user", "content": "I have uploaded a Pyomo model."})
+    st.session_state.messages.append(
+        {"role": "user", "content": "I have uploaded a Pyomo model."}
+    )
     # interpret the model components
-    models_dict, cnt, completion = st.session_state.Interpreter.generate_interpretation_exp(st.session_state,
-                                                                                            models_dict, code)
-    st.session_state['models_dict'] = models_dict
-    st.session_state['code'] = code
+    models_dict, cnt, completion = (
+        st.session_state.Interpreter.generate_interpretation_exp(
+            st.session_state, models_dict, code
+        )
+    )
+    st.session_state["models_dict"] = models_dict
+    st.session_state["code"] = code
     # update model representation with component descriptions
     update_model_representation(st.session_state.models_dict)
     # illustrate the model
-    illustration_stream = st.session_state.Interpreter.generate_illustration_exp(st.session_state,
-                                                                                 models_dict["model_representation"])
+    illustration_stream = st.session_state.Interpreter.generate_illustration_exp(
+        st.session_state, models_dict["model_representation"]
+    )
     with st.chat_message("assistant"):
         illustration = st.write_stream(illustration_stream)
+
     # update model representation with model description
-    st.session_state.models_dict['model_1']['model description'] = illustration
+    st.session_state.models_dict["model_1"]["model_description"] = illustration
     update_model_representation(st.session_state.models_dict)
     # if the model is infeasible, generate inference
-    if st.session_state.models_dict['model_1']['model status'] in [TerminationCondition.infeasible,
-                                                                   TerminationCondition.infeasibleOrUnbounded]:
-        inference_stream = st.session_state.Interpreter.generate_inference_exp(st.session_state,
-                                                                               st.session_state.models_dict["model_representation"])
+    if st.session_state.models_dict["model_1"]["model_status"] in [
+        TerminationCondition.infeasible,
+        TerminationCondition.infeasibleOrUnbounded,
+    ]:
+        inference_stream = st.session_state.Interpreter.generate_inference_exp(
+            st.session_state, st.session_state.models_dict["model_representation"]
+        )
         with st.chat_message("assistant"):
             inference = st.write_stream(inference_stream)
         # update model representation with inference description
-        st.session_state.models_dict['model_1']['model description'] = illustration + '\n' + inference
+        st.session_state.models_dict["model_1"]["model_description"] = (
+            illustration + "\n" + inference
+        )
         update_model_representation(st.session_state.models_dict)
 
     # append model representation to messages
-    st.session_state.messages.append({"role": "assistant",
-                                      "content": st.session_state.models_dict["model_representation"]["model description"]})
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": st.session_state.models_dict["model_representation"][
+                "model_description"
+            ],
+        }
+    )
 
     # append detailed chat history
     st.session_state.chat_history.append("user: I have uploaded a Pyomo model.")
-    st.session_state.chat_history.append("assistant: " +
-                                         st.session_state.models_dict["model_representation"]["model description"])
-    st.session_state.detailed_chat_history.append("user: I have uploaded a Pyomo model.")
-    st.session_state.detailed_chat_history.append("assistant: " +
-                                                  st.session_state.models_dict["model_representation"]["model description"])
+    st.session_state.chat_history.append(
+        "assistant: "
+        + st.session_state.models_dict["model_representation"]["model_description"]
+    )
+    st.session_state.detailed_chat_history.append(
+        "user: I have uploaded a Pyomo model."
+    )
+    st.session_state.detailed_chat_history.append(
+        "assistant: "
+        + st.session_state.models_dict["model_representation"]["model_description"]
+    )
 
     # save model_description and description of every component
     if not os.path.exists("logs/model_json"):
@@ -133,11 +229,31 @@ def process():
         os.makedirs("logs/ilps")
 
     json2save = get_skipJSON(st.session_state.models_dict["model_representation"])
-    with open(f"logs/model_json/{os.path.splitext(uploaded_file.name)[0]}.json", "w") as f:
+    with open(
+        f"logs/model_json/{os.path.splitext(uploaded_file.name)[0]}.json", "w"
+    ) as f:
         json.dump(json2save, f)
 
 
 def load_json():
+    """
+    Load model and JSON configuration files for OptiChat processing.
+
+    This function handles loading both a Pyomo model file and a corresponding
+    JSON configuration file that contains pre-computed model component
+    descriptions to skip the interpretation step.
+
+    Returns
+    -------
+    None
+        Updates Streamlit session state with model data and representation.
+
+    Notes
+    -----
+    Requires both uploaded_file (Pyomo model) and uploaded_json (component
+    descriptions) to be available in session state. Used for faster loading
+    when component descriptions are already available.
+    """
     if uploaded_file is None:
         st.error("Please upload your model first.")
         return
@@ -149,38 +265,50 @@ def load_json():
 
     with st.chat_message("user"):
         st.markdown("I have uploaded a Pyomo model.")
-    st.session_state.messages.append({"role": "user", "content": "I have uploaded a Pyomo model."})
+    st.session_state.messages.append(
+        {"role": "user", "content": "I have uploaded a Pyomo model."}
+    )
 
     skipJSON = json.load(uploaded_json)
     models_dict = feed_skipJSON(skipJSON, models_dict)
 
     st.session_state["models_dict"] = models_dict
-    st.session_state['code'] = code
+    st.session_state["code"] = code
     # update model representation with component and model descriptions
     update_model_representation(st.session_state.models_dict)
 
     time.sleep(8)
-    stream = string_generator(skipJSON["model description"])
+    stream = string_generator(skipJSON["model_description"])
     with st.chat_message("assistant"):
         st.write_stream(stream)
 
     # append model representation to messages
-    st.session_state.messages.append({"role": "assistant",
-                                      "content": st.session_state.models_dict["model_representation"][
-                                          "model description"]})
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": st.session_state.models_dict["model_representation"][
+                "model_description"
+            ],
+        }
+    )
 
     # append detailed chat history
     st.session_state.chat_history.append("user: I have uploaded a Pyomo model.")
-    st.session_state.chat_history.append("assistant: " +
-                                         st.session_state.models_dict["model_representation"]["model description"])
-    st.session_state.detailed_chat_history.append("user: I have uploaded a Pyomo model.")
-    st.session_state.detailed_chat_history.append("assistant: " +
-                                                  st.session_state.models_dict["model_representation"][
-                                                      "model description"])
+    st.session_state.chat_history.append(
+        "assistant: "
+        + st.session_state.models_dict["model_representation"]["model_description"]
+    )
+    st.session_state.detailed_chat_history.append(
+        "user: I have uploaded a Pyomo model."
+    )
+    st.session_state.detailed_chat_history.append(
+        "assistant: "
+        + st.session_state.models_dict["model_representation"]["model_description"]
+    )
 
 
-chat_history_texts = '\n\n'.join(st.session_state.chat_history)
-detailed_chat_history_texts = '\n\n'.join(st.session_state.detailed_chat_history)
+chat_history_texts = "\n\n".join(st.session_state.chat_history)
+detailed_chat_history_texts = "\n\n".join(st.session_state.detailed_chat_history)
 
 st.sidebar.button("Process", on_click=process)
 st.sidebar.button("Load JSON", on_click=load_json)
@@ -193,10 +321,18 @@ code_placeholder = st.empty()
 show_tech_feedback = st.sidebar.checkbox("Show Technical Feedback", False)
 tech_feedback_placeholder = st.empty()
 
-st.sidebar.download_button(label="Export Chat History", data=chat_history_texts,
-                           file_name='chat_history.txt', mime='text/plain')
-st.sidebar.download_button(label="Export Detailed Chat History", data=detailed_chat_history_texts,
-                           file_name='detailed_chat_history.txt', mime='text/plain')
+st.sidebar.download_button(
+    label="Export Chat History",
+    data=chat_history_texts,
+    file_name="chat_history.txt",
+    mime="text/plain",
+)
+st.sidebar.download_button(
+    label="Export Detailed Chat History",
+    data=detailed_chat_history_texts,
+    file_name="detailed_chat_history.txt",
+    mime="text/plain",
+)
 
 
 st.sidebar.markdown("### Status")
@@ -211,7 +347,7 @@ agent_name = st.sidebar.empty()
 st.sidebar.markdown("### Task")
 task = st.sidebar.empty()
 
-
+# Checkbox options to show/hide different sections
 if show_model_representation:
     with model_representation_placeholder.container():
         st.json(st.session_state.models_dict["model_representation"])
@@ -227,7 +363,7 @@ else:
 if show_tech_feedback:
     with tech_feedback_placeholder.container():
         for message in st.session_state.team_conversation:
-            st.write(message['agent_name'] + ': ' + message['agent_response'])
+            st.write(message["agent_name"] + ": " + message["agent_response"])
             # if message['agent_name'] in ['Programmer', 'Operator', 'Syntax reminder', 'Explainer', 'Coordinator']:
             #     st.write(message['agent_name'] + ': ' + message['agent_response'])
 else:
@@ -245,13 +381,17 @@ if prompt := st.chat_input("Enter your query here..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    updated_messages, team_conversation = OptiChat_workflow_exp(st.session_state,
-                                                                st.session_state.Coordinator,
-                                                                st.session_state.Engineer,
-                                                                st.session_state.Explainer,
-                                                                st.session_state.messages,
-                                                                st.session_state.models_dict)
-    print('OptiChat_out:', updated_messages)
+    logger.info(f"User prompt: {prompt}")
+    updated_messages, team_conversation = OptiChat_workflow_exp(
+        args=st.session_state,  # type: ignore
+        coordinator=st.session_state.Coordinator,
+        engineer=st.session_state.Engineer,
+        explainer=st.session_state.Explainer,
+        messages=st.session_state.messages,
+        models_dict=st.session_state.models_dict,
+    )
+    logger.debug(f"Team conversation: {team_conversation}")
+    # logger.info(f"OptiChat_out: {updated_messages}")
     st.session_state.messages = updated_messages
 
     # # update detailed chat history
