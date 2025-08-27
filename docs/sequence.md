@@ -507,6 +507,200 @@ The system generates different types of code based on the analysis requirements:
 
 This code generation capability makes OptiChat highly adaptable to novel optimization analysis scenarios while maintaining safety and reliability through its iterative refinement process.
 
+### Coordinator Workflow Deep Dive
+
+The Coordinator agent serves as the orchestrator of the multi-agent system, making critical decisions about which specialized agent should handle each user query. It acts as the central intelligence that routes requests to the most appropriate expert.
+
+#### Coordinator's Role and Responsibilities
+
+**Primary Function**: Analyze user queries and determine the optimal agent assignment for handling the request.
+
+**Key Responsibilities**:
+
+- **Query Analysis**: Examine user messages and conversation context to understand intent
+- **Agent Selection**: Choose between Engineer (technical analysis) or Explainer (user-friendly explanations)
+- **Task Definition**: Specify what the selected agent should accomplish
+- **Workflow Orchestration**: Manage the overall conversation flow and agent coordination
+- **Error Handling**: Handle coordination failures and provide fallback responses
+
+#### Coordinator Decision Logic
+
+The Coordinator follows a sophisticated decision-making process:
+
+##### Context-Aware Assignment
+
+**Team Conversation Analysis**:
+
+- **Empty Team Conversation**: When no prior technical analysis exists, typically assigns Engineer for initial analysis
+- **Existing Team Conversation**: When technical feedback is already available, usually assigns Explainer to synthesize and explain results
+- **Conversation State**: Considers the last agent response to determine next appropriate action
+
+##### Intelligent Query Interpretation
+
+**LLM-Powered Decision Making**:
+
+- Uses advanced language model to analyze query complexity and intent
+- Considers technical vs. explanatory nature of the request
+- Evaluates whether new analysis is needed or explanation of existing results is sufficient
+- Handles edge cases like thank-you messages or requests for clarification
+
+##### Decision Output Structure
+
+The Coordinator generates structured decisions containing:
+
+- **agent_name**: Either "Engineer" or "Explainer"
+- **task**: Specific description of what the assigned agent should accomplish
+- **Reasoning**: Internal logic for the assignment (tracked for debugging)
+
+#### Error Handling and Robustness
+
+**Multi-Attempt Strategy**:
+
+- Coordinator attempts decision-making up to 3 times if initial attempts fail
+- Each attempt uses different random seeds for varied LLM responses
+- Validates decision structure and agent availability before acceptance
+
+**Validation Checks**:
+
+- Ensures selected agent exists in the available agent pool
+- Validates JSON structure of decision output
+- Handles malformed responses and provides error recovery
+- Converts "DONE" responses to appropriate Explainer assignments
+
+**Fallback Mechanisms**:
+
+- If all coordination attempts fail, returns error message to user
+- Provides detailed error logging for debugging coordination issues
+- Maintains conversation continuity even during coordination failures
+
+#### Coordination Timing and Performance
+
+**Efficiency Optimizations**:
+
+- **Quick Assignment Logic**: For conversations with existing technical feedback, immediately assigns Explainer without LLM calls
+- **Context Reuse**: Leverages previous conversation context to make faster decisions
+- **Reduced LLM Calls**: Minimizes expensive language model interactions when logic is straightforward
+
+**Performance Tracking**:
+
+- Measures and tracks coordination_time for each decision cycle
+- Enables analysis of coordination overhead in the overall workflow
+- Supports optimization of decision-making processes
+
+### Explainer Workflow Deep Dive
+
+The Explainer agent specializes in translating complex technical analysis results into clear, user-friendly explanations suitable for non-technical stakeholders and decision-makers.
+
+#### Explainer's Core Mission
+
+**Primary Purpose**: Transform technical optimization analysis results into accessible, actionable insights for users without deep technical expertise.
+
+**Target Audience**:
+
+- Business decision-makers who need to understand optimization results
+- Stakeholders who require insights without technical implementation details
+- Users seeking practical recommendations based on technical analysis
+- Anyone needing clarification of complex optimization concepts
+
+#### Explainer Processing Workflow
+
+##### Input Synthesis
+
+**Multi-Source Information Integration**:
+
+- **Original Messages**: User's original questions and requests for context
+- **Team Conversation History**: Technical feedback from Engineer and other agents including:
+  - Syntax analysis results and guidance
+  - Tool execution outputs (feasibility, sensitivity, component retrieval results)
+  - Code generation results and execution outcomes
+  - Error messages and technical diagnostics
+
+##### Natural Language Processing
+
+**Content Transformation**:
+
+- **Technical Translation**: Converts technical jargon into plain language
+- **Context Preservation**: Maintains essential technical accuracy while improving accessibility
+- **Actionable Insights**: Focuses on practical implications and recommendations
+- **Structured Explanation**: Organizes complex information into logical, digestible sections
+
+##### Response Generation
+
+**LLM-Powered Explanation**:
+
+- Uses sophisticated language model prompting to generate explanations
+- **Temperature Control**: Adjustable creativity/consistency balance based on experimental args
+- **Streaming Support**: Can provide real-time streaming responses for immediate user feedback
+- **Context-Aware**: Considers full conversation history for coherent explanations
+
+#### Explainer Capabilities
+
+##### Technical Concept Translation
+
+**Optimization Concepts**:
+
+- **Feasibility Issues**: Explains constraint violations and infeasibility in business terms
+- **Sensitivity Analysis**: Translates dual values and shadow prices into business impact
+- **Model Components**: Describes variables, parameters, and constraints in domain language
+- **Solution Quality**: Explains optimality, solution robustness, and trade-offs
+
+##### Business Impact Communication
+
+**Decision Support**:
+
+- **Recommendation Generation**: Provides actionable business recommendations
+- **Risk Assessment**: Explains potential consequences of different decisions
+- **Trade-off Analysis**: Clarifies relationships between competing objectives
+- **Implementation Guidance**: Suggests practical steps for implementing optimization insights
+
+##### Error and Issue Communication
+
+**Problem Resolution**:
+
+- **Error Explanation**: Translates technical error messages into user-understandable terms
+- **Troubleshooting Guidance**: Suggests approaches for resolving analysis issues
+- **Alternative Approaches**: Recommends different analysis strategies when initial approaches fail
+- **Limitation Communication**: Clearly explains when analysis has limitations or constraints
+
+#### Explainer Quality Assurance
+
+##### Accuracy Preservation
+
+**Technical Accuracy Maintenance**:
+
+- Ensures mathematical and optimization concepts remain correct during translation
+- Preserves quantitative results and their significance
+- Maintains logical relationships between model components
+- Avoids oversimplification that could lead to misinterpretation
+
+##### Communication Excellence
+
+**User Experience Focus**:
+
+- **Clarity**: Uses simple, direct language appropriate for the audience
+- **Completeness**: Addresses all relevant aspects of the technical analysis
+- **Relevance**: Focuses on information most pertinent to user's original question
+- **Actionability**: Emphasizes insights that can guide decision-making
+
+#### Integration with Overall Workflow
+
+##### Workflow Termination
+
+**Conversation Completion**:
+
+- Explainer responses typically conclude the analysis workflow
+- Provides final answer that addresses user's original query
+- Synthesizes all previous technical work into coherent final output
+- Returns control to user for follow-up questions or new requests
+
+##### Timing and Performance
+
+**Efficiency Considerations**:
+
+- **Response Time**: Measured separately as explanation_time
+- **Streaming Capability**: Can provide immediate feedback through response streaming
+- **Context Efficiency**: Leverages all available context without redundant processing
+
 ### Timing Tracking
 
 The workflow tracks execution time for each phase:
