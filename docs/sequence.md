@@ -142,7 +142,12 @@ sequenceDiagram
    - Identifies component names and types that need to be referenced
    - Generates guidance on proper syntax for accessing model components in analysis tools
    - Validates that the user's query can be mapped to available model components
-2. **Tool Calling**: Executes specialized tools for feasibility analysis, sensitivity analysis, etc.
+2. **Tool Calling**: Executes specialized built-in tools for optimization analysis
+   - **feasibility_restoration**: Finds minimal parameter changes to restore feasibility
+   - **sensitivity_analysis**: Analyzes parameter impact on optimal objective values
+   - **components_retrieval**: Retrieves current values and expressions of model components
+   - **evaluate_modification**: Evaluates specific parameter modification impacts
+   - Tool selection based on user query intent and model component structure
 3. **Code Generation**: Creates custom Python code when built-in tools are insufficient for the analysis
    - Triggered when syntax analysis determines "external_tools" mode is needed
    - Uses iterative programmer loop with multiple attempts for code refinement
@@ -196,6 +201,217 @@ Based on the syntax analysis results, the system determines which specialized to
 - Tools for scalar components (simple evaluation functions)
 
 This syntax analysis ensures that subsequent tool calls use the correct component references and appropriate analysis methods for the model's structure.
+
+### Built-in Analysis Tools Deep Dive
+
+OptiChat provides a comprehensive suite of built-in tools specifically designed for optimization model analysis. These tools are automatically selected and configured based on the user's query and the model's component structure.
+
+#### Tool Categories and Selection Logic
+
+The system categorizes tools based on component indexing complexity:
+
+- **Multiple Tools**: For components with multiple indices (e.g., `production[factory, product, time]`)
+- **Single Tools**: For components with single indices (e.g., `demand[customer]`)
+- **None Tools**: For scalar/non-indexed components (e.g., `total_budget`)
+- **All Tools**: Universal tools that work regardless of indexing structure
+
+#### Core Analysis Tools
+
+##### 1. Feasibility Restoration (`feasibility_restoration`)
+
+**Purpose**: Automatically finds the minimal parameter changes needed to restore feasibility to an infeasible optimization model.
+
+**When Used**:
+
+- Model is currently infeasible (solver returns infeasible status)
+- User wants to know minimal changes to make model solvable
+- User asks questions like "How much should we adjust [parameter] to make the model feasible?"
+
+**What It Does**:
+
+- Creates a copy of the infeasible model
+- Introduces slack variables to violated constraints
+- Solves a modified problem to minimize constraint violations
+- Identifies specific parameter adjustments needed
+- Calculates minimal changes required for feasibility restoration
+- Provides detailed feedback on which constraints are problematic
+
+**Output**:
+
+- Specific parameter values that need adjustment
+- Magnitude of required changes
+- Analysis of which constraints are causing infeasibility
+- Recommendations for practical implementation
+
+##### 2. Sensitivity Analysis (`sensitivity_analysis`)
+
+**Purpose**: Analyzes how changes in parameters affect the optimal objective value without specifying exact change amounts.
+
+**When Used**:
+
+- Model is feasible and user wants general sensitivity insights
+- Questions like "How will profit change if we modify [parameter]?"
+- User doesn't specify exact change amounts (vs. evaluate_modification)
+- Only works with linear programming models
+
+**What It Does**:
+
+- Solves the model to optimality
+- Computes dual values (shadow prices) for constraints
+- Calculates sensitivity ranges for RHS parameters
+- Determines parameter stability and impact on objective
+- Provides economic interpretation of dual values
+
+**Technical Requirements**:
+
+- Model must be feasible
+- Limited to linear programming problems
+- Focuses on RHS (right-hand side) parameters
+- Uses mathematical optimization duality theory
+
+**Output**:
+
+- Dual values and their economic interpretation
+- Sensitivity ranges for parameter changes
+- Impact assessment on optimal objective value
+- Recommendations for parameter management
+
+##### 3. Components Retrieval (`components_retrieval`)
+
+**Purpose**: Retrieves current values, expressions, or data for any model component.
+
+**When Used**:
+
+- User asks "What are the values of [component]?"
+- Need to examine current model state
+- Want to understand component expressions or structures
+- Works with any component type (variables, parameters, sets, constraints, objectives)
+
+**What It Does**:
+
+- Extracts current values from parameters
+- Shows variable values (if model solved)
+- Displays set data and membership
+- Reveals constraint expressions and structures
+- Shows objective function formulations
+- Handles complex indexing patterns
+
+**Supported Components**:
+
+- **Parameters**: Current values and data
+- **Variables**: Values (post-solution) and bounds
+- **Sets**: Membership and structure
+- **Constraints**: Expressions and bounds
+- **Objectives**: Function formulations and values
+
+**Output**:
+
+- Formatted component data
+- Structured information about indices and values
+- Clear presentation of complex mathematical expressions
+- Context for understanding component roles
+
+##### 4. Evaluate Modification (`evaluate_modification`)
+
+**Purpose**: Evaluates the specific impact of precise parameter modifications on model performance.
+
+**When Used**:
+
+- User specifies exact change amounts (e.g., "increase by 10%", "add 50 units")
+- Want to test specific scenarios or modifications
+- Questions like "What if we increase capacity by 20%?"
+- Need precise impact assessment for decision-making
+
+**What It Does**:
+
+- Creates a modified copy of the original model
+- Applies specified parameter changes
+- Solves the modified model
+- Compares results with original model
+- Calculates impact on objective value and constraints
+- Provides detailed change analysis
+
+**Modification Types**:
+
+- **Absolute changes**: Add/subtract specific amounts
+- **Percentage changes**: Increase/decrease by percentages
+- **Multiplicative changes**: Scale by factors
+- **Assignment changes**: Set to specific values
+
+**Output**:
+
+- Before/after comparison of key metrics
+- Objective value changes
+- Constraint satisfaction status
+- Feasibility impact assessment
+- Recommendations for implementation
+
+##### 5. Syntax Guidance (`syntax_guidance`)
+
+**Purpose**: Internal tool that provides proper syntax for accessing model components in analysis functions.
+
+**When Used**:
+
+- Automatically called during syntax analysis phase
+- Generates guidance for proper component referencing
+- Ensures correct tool parameter formatting
+
+**What It Does**:
+
+- Analyzes component indexing structures
+- Generates proper syntax patterns
+- Validates component accessibility
+- Provides examples for complex indexing
+- Ensures tool compatibility with model structure
+
+#### Tool Integration and Workflow
+
+**Automatic Tool Selection**:
+
+- System analyzes user query intent
+- Matches query to appropriate tool capabilities
+- Considers model structure and component types
+- Selects optimal tool configuration
+
+**Parameter Processing**:
+
+- Handles complex indexing (tuples, slices, ranges)
+- Converts string specifications to appropriate types
+- Validates component existence and accessibility
+- Manages special cases ("none", "**all**", etc.)
+
+**Error Handling and Fallbacks**:
+
+- If built-in tools fail, system falls back to code generation
+- Provides detailed error messages for troubleshooting
+- Suggests alternative approaches when tools aren't applicable
+- Maintains analysis continuity through tool failures
+
+#### Tool Limitations and Capabilities
+
+**Feasibility Restoration**:
+
+- Works with any model type (LP, MILP, NLP)
+- Requires infeasible starting model
+- May suggest impractical changes in some cases
+
+**Sensitivity Analysis**:
+
+- Limited to linear programming models only
+- Focuses on RHS parameters
+- Requires feasible starting model
+
+**Components Retrieval**:
+
+- Universal compatibility with all model types
+- Works with solved and unsolved models
+- No structural limitations
+
+**Evaluate Modification**:
+
+- Works with any model type
+- Requires feasible starting model
+- Handles any parameter type
 
 ### Code Generation Deep Dive
 
