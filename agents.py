@@ -805,8 +805,8 @@ class Interpreter(Agent):
         cnt: int = 3
         while not task_complete and cnt > 0:
             self._init_prompt_template()
-            cat_need2describe_prompt = ""
-            need2describe = {}
+            cat_need2describe_prompt: str = ""
+            need2describe: dict[str, list[str]] = {}
             for component_type in [
                 "sets",
                 "parameters",
@@ -820,6 +820,7 @@ class Interpreter(Agent):
                 ].items():
                     if value.get("description") in ["None", None]:
                         need2describe[component_type].append(key)
+
                 # if there are components that haven't been described, add them to the prompt
                 if len(need2describe[component_type]) > 0:
                     cat_need2describe_prompt = self._cat(
@@ -2201,6 +2202,7 @@ class Engineer(Agent):
         """
         self._init_cnt()
 
+        # first generate syntax reminder
         if args.external_experiment:
             syntax_output, syntax_mode = "external_tools", "none"
             self.syntax_success = True
@@ -2223,85 +2225,87 @@ class Engineer(Agent):
                     {"role": "assistant", "content": syntax_output}
                 )
             )
-        else:
-            if syntax_output != "external_tools":
-                # add code reminder to the team_conversation as well to help find correct component indexes
-                # add syntax reminder
+            return ReportGenerationResult(
+                messages=messages, team_conversation=team_conversation
+            )
+
+        if syntax_output != "external_tools":
+            # add code reminder to the team_conversation as well to help find correct component indexes
+            # add syntax reminder
+            team_conversation.append(
+                {
+                    "agent_name": "Code reminder",
+                    "agent_response": models_dict["model_representation"]["code"],
+                }
+            )
+            team_conversation.append(
+                {"agent_name": "Syntax reminder", "agent_response": syntax_output}
+            )
+            function_output = self.generate_feedback_exp(
+                args, messages, team_conversation, models_dict, syntax_mode
+            )
+
+            team_conversation = [
+                item
+                for item in team_conversation
+                if item["agent_name"] not in ["Code reminder", "Syntax reminder"]
+            ]
+
+            team_conversation.append(
+                {"agent_name": "Operator", "agent_response": function_output}
+            )
+            if self.operator_success:
+                messages.append(
+                    ChatCompletionAssistantMessageParam(
+                        {"role": "assistant", "content": function_output}
+                    )
+                )
+            else:
+                syntax_output = "external_tools"
+
+        if not args.internal_experiment:
+            # use external tools to generate the report
+            if syntax_output == "external_tools":
+                code_output, execution_rst, evaluation_output = self.generate_code_exp(
+                    args, messages, team_conversation, models_dict
+                )
+                team_conversation.append(
+                    {"agent_name": "Programmer", "agent_response": code_output}
+                )
                 team_conversation.append(
                     {
-                        "agent_name": "Code reminder",
-                        "agent_response": models_dict["model_representation"]["code"],
+                        "agent_name": "Execution result",
+                        "agent_response": execution_rst,
                     }
                 )
                 team_conversation.append(
-                    {"agent_name": "Syntax reminder", "agent_response": syntax_output}
-                )
-                function_output = self.generate_feedback_exp(
-                    args, messages, team_conversation, models_dict, syntax_mode
+                    {"agent_name": "Evaluator", "agent_response": evaluation_output}
                 )
 
-                team_conversation = [
-                    item
-                    for item in team_conversation
-                    if item["agent_name"] not in ["Code reminder", "Syntax reminder"]
-                ]
-
-                team_conversation.append(
-                    {"agent_name": "Operator", "agent_response": function_output}
-                )
-                if self.operator_success:
-                    messages.append(
-                        ChatCompletionAssistantMessageParam(
-                            {"role": "assistant", "content": function_output}
-                        )
-                    )
-                else:
-                    syntax_output = "external_tools"
-
-            if not args.internal_experiment:
-                if syntax_output == "external_tools":
-                    code_output, execution_rst, evaluation_output = (
-                        self.generate_code_exp(
-                            args, messages, team_conversation, models_dict
-                        )
-                    )
-                    team_conversation.append(
-                        {"agent_name": "Programmer", "agent_response": code_output}
-                    )
-                    team_conversation.append(
+                messages.append(
+                    ChatCompletionAssistantMessageParam(
                         {
-                            "agent_name": "Execution result",
-                            "agent_response": execution_rst,
+                            "role": "assistant",
+                            "content": "Programmer:\n\n" + code_output,
                         }
                     )
-                    team_conversation.append(
-                        {"agent_name": "Evaluator", "agent_response": evaluation_output}
+                )
+                messages.append(
+                    ChatCompletionAssistantMessageParam(
+                        {
+                            "role": "assistant",
+                            "content": "Execution result:\n\n" + execution_rst,
+                        }
                     )
-
-                    messages.append(
-                        ChatCompletionAssistantMessageParam(
-                            {
-                                "role": "assistant",
-                                "content": "Programmer:\n\n" + code_output,
-                            }
-                        )
+                )
+                messages.append(
+                    ChatCompletionAssistantMessageParam(
+                        {
+                            "role": "assistant",
+                            "content": "Evaluator:\n\n" + evaluation_output,
+                        }
                     )
-                    messages.append(
-                        ChatCompletionAssistantMessageParam(
-                            {
-                                "role": "assistant",
-                                "content": "Execution result:\n\n" + execution_rst,
-                            }
-                        )
-                    )
-                    messages.append(
-                        ChatCompletionAssistantMessageParam(
-                            {
-                                "role": "assistant",
-                                "content": "Evaluator:\n\n" + evaluation_output,
-                            }
-                        )
-                    )
+                )
 
         return ReportGenerationResult(
             messages=messages, team_conversation=team_conversation
