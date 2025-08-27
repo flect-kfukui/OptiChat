@@ -1673,6 +1673,7 @@ class Engineer(Agent):
 
             tool_choice: ChatCompletionToolChoiceOptionParam = "required"
 
+        logger.debug(f"Messages sent to LLM: {messages}")
         if type(self.client) in [OpenAI, Client]:
             if self.llm not in ["o3"]:
                 completion: ChatCompletion = self.client.chat.completions.create(
@@ -2111,6 +2112,7 @@ class Engineer(Agent):
             pseudo_messages = self.generate_pseudo_messages(
                 messages, self.fake_team_conversation, programmer_prompt
             )
+            logger.debug(f"Programmer prompt: {pseudo_messages}")
             code_output, revision_code, print_code = self.programmer_loop_exp(
                 args, pseudo_messages
             )
@@ -2213,7 +2215,7 @@ class Engineer(Agent):
             syntax_output = syntax_result.syntax_output
             syntax_mode = syntax_result.syntax_mode
             logger.debug(
-                f"syntax_output = {syntax_output}, syntax_mode = {syntax_mode}"
+                f"syntax_mode = {syntax_mode}, syntax_output = {syntax_output}"
             )
 
         if not self.syntax_success:
@@ -2244,6 +2246,7 @@ class Engineer(Agent):
             function_output = self.generate_feedback_exp(
                 args, messages, team_conversation, models_dict, syntax_mode
             )
+            logger.debug(f"function_output = {function_output}")
 
             team_conversation = [
                 item
@@ -2266,9 +2269,14 @@ class Engineer(Agent):
         if not args.internal_experiment:
             # use external tools to generate the report
             if syntax_output == "external_tools":
+                logger.debug("Generating code")
                 code_output, execution_rst, evaluation_output = self.generate_code_exp(
                     args, messages, team_conversation, models_dict
                 )
+                logger.debug(f"code_output = {code_output}")
+                logger.debug(f"execution_rst = {execution_rst}")
+                logger.debug(f"evaluation_output = {evaluation_output}")
+
                 team_conversation.append(
                     {"agent_name": "Programmer", "agent_response": code_output}
                 )
